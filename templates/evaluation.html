@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css?v=20260317mc2">
+</head>
+<body class="page-eval" data-risk-tone="neutral">
+  <main class="container">
+    <header class="page-header page-header-wide page-eval-hero">
+      <div class="page-header-copy">
+        <p class="eyebrow">Batch Evaluation</p>
+        <h1>Baseline Evaluator</h1>
+        <p class="hint">Run a labeled baseline, watch each check progress live, and review the final performance report in one place.</p>
+        <div class="hero-chip-row" aria-label="Evaluation flow checkpoints">
+          <span class="hero-chip hero-chip-signal">Upload labeled baseline</span>
+          <span class="hero-chip">Track check progress</span>
+          <span class="hero-chip">Inspect error rows</span>
+          <span class="hero-chip">Review confusion metrics</span>
+        </div>
+      </div>
+      <div class="page-header-aside">
+        <nav class="topnav" aria-label="Primary">
+          {% for item in nav_items %}
+          <a
+            class="nav-link{% if active_page == item.id %} is-active{% endif %}"
+            href="{{ item.href }}"
+          >
+            {{ item.label }}
+          </a>
+          {% endfor %}
+        </nav>
+        <section class="scan-lens" aria-label="Evaluation checkpoints">
+          <p class="scan-lens-label">Run checklist</p>
+          <div class="scan-lens-grid">
+            <span class="lens-pill">CSV validation</span>
+            <span class="lens-pill">Sequential checks</span>
+            <span class="lens-pill">Mismatch review</span>
+            <span class="lens-pill">Downloadable report</span>
+          </div>
+          <p class="scan-lens-note">This view is for proving signal quality, not just producing one more accuracy number.</p>
+        </section>
+      </div>
+    </header>
+
+    <section class="card evaluation-stage">
+      <div class="evaluation-stage-copy">
+        <p class="eyebrow">Upload And Run</p>
+        <h2>Evaluate your scanner against known labels.</h2>
+        <p class="hint">Required CSV columns: <code>url</code> and <code>is_phishing</code>. The evaluator scores each website, tracks check-by-check progress, and generates a report with confusion metrics and score distribution.</p>
+        <div class="quick-intel-row" aria-label="Evaluation tips">
+          <span class="quick-intel-label">Best when your CSV includes:</span>
+          <span class="quick-intel-pill">Lookalike domains</span>
+          <span class="quick-intel-pill">Benign logins</span>
+          <span class="quick-intel-pill">Fresh phishing kits</span>
+        </div>
+      </div>
+
+      <form id="evaluation-form" class="evaluation-form">
+        <label class="file-drop-zone" for="csv-file-input">
+          <input id="csv-file-input" type="file" accept=".csv,text/csv">
+          <span class="file-drop-title">Choose baseline CSV</span>
+          <span id="file-summary" class="file-drop-subtitle">No file selected yet.</span>
+        </label>
+
+        <label class="field-block" for="threshold-input">
+          <span class="field-label">Classification threshold</span>
+          <input id="threshold-input" type="number" min="0" max="100" step="0.1" value="50">
+          <span class="command-footnote">Raise the threshold to reduce false positives. Lower it to catch more suspicious URLs.</span>
+        </label>
+
+        <button id="start-evaluation" type="submit">Start Evaluation</button>
+      </form>
+
+      <section class="scan-helper-row" aria-label="Batch evaluation tips">
+        <span class="quick-intel-pill">Upload clean labeled rows</span>
+        <span class="quick-intel-pill">Start at threshold 50, then compare tradeoffs</span>
+        <a class="helper-link" href="/">Need to inspect one suspicious URL first?</a>
+      </section>
+    </section>
+
+    <section id="eval-status" class="card muted status-panel" aria-live="polite">
+      <div class="status-shell">
+        <p class="eyebrow status-eyebrow">Benchmark Log</p>
+        <p id="eval-status-message" class="status-message">Upload a CSV baseline to begin.</p>
+        <p id="eval-status-detail" class="status-detail">Once a run starts, this panel will call out progress, bottlenecks, and the next review step.</p>
+      </div>
+    </section>
+
+    <section class="evaluation-grid">
+      <section id="live-progress" class="card progress-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Live Progress</p>
+            <h2>Evaluation Run</h2>
+          </div>
+          <div id="job-badge" class="summary-state">Idle</div>
+        </div>
+
+        <div class="progress-meter">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <div class="progress-meta">
+          <span id="progress-text">0 of 0 websites processed</span>
+          <span id="progress-percent">0%</span>
+        </div>
+
+        <div class="kpi-grid">
+          <article class="kpi-card">
+            <span class="metric-label">Processed</span>
+            <strong id="processed-count" class="kpi-value">0</strong>
+          </article>
+          <article class="kpi-card">
+            <span class="metric-label">Scored</span>
+            <strong id="scored-count" class="kpi-value">0</strong>
+          </article>
+          <article class="kpi-card">
+            <span class="metric-label">Errors</span>
+            <strong id="error-count" class="kpi-value">0</strong>
+          </article>
+        </div>
+
+        <article class="current-url-card">
+          <span class="metric-label">Current Website</span>
+          <strong id="current-url">Waiting for a run...</strong>
+        </article>
+
+        <article class="check-runner-card">
+          <div class="panel-subheader">
+            <h3>Current Tests</h3>
+            <span class="hint">Sequential progress for the active website</span>
+          </div>
+          <div id="check-list" class="check-list"></div>
+        </article>
+
+        <article class="recent-stream-card">
+          <div class="panel-subheader">
+            <h3>Recent Websites</h3>
+            <span class="hint">Latest finished rows from this run</span>
+          </div>
+          <div id="recent-rows" class="recent-stream empty-state">No websites processed yet.</div>
+        </article>
+      </section>
+
+      <section id="report-shell" class="card report-shell hidden">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Post-Run Report</p>
+            <h2>Model Performance</h2>
+          </div>
+          <a id="download-report" class="button-link hidden" href="#">Download CSV</a>
+        </div>
+
+        <div class="tab-row" role="tablist" aria-label="Report views">
+          <button class="tab-button is-active" type="button" data-tab="overview">Overview</button>
+          <button class="tab-button" type="button" data-tab="metrics">Metrics</button>
+          <button class="tab-button" type="button" data-tab="rows">Rows</button>
+        </div>
+
+        <section class="tab-panel is-active" data-panel="overview">
+          <div id="report-summary-cards" class="summary-metric-grid"></div>
+          <div class="report-two-up">
+            <article class="report-card">
+              <div class="panel-subheader">
+                <h3>Confusion Matrix</h3>
+                <span class="hint">Best quick read of model behavior</span>
+              </div>
+              <div id="confusion-matrix" class="confusion-matrix"></div>
+            </article>
+            <article class="report-card">
+              <div class="panel-subheader">
+                <h3>Check Activity</h3>
+                <span class="hint">What drove or reduced certainty</span>
+              </div>
+              <div id="check-activity" class="mini-bars empty-state">Run a job to populate check activity.</div>
+            </article>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="metrics">
+          <article class="report-card">
+            <div class="panel-subheader">
+              <h3>Risk Score Distribution</h3>
+              <span class="hint">Stacked by ground-truth label</span>
+            </div>
+            <div id="score-distribution" class="histogram empty-state">No score data yet.</div>
+          </article>
+          <article class="report-card">
+            <div class="panel-subheader">
+              <h3>Error Summary</h3>
+              <span class="hint">Top row-level failures from the run</span>
+            </div>
+            <div id="error-summary" class="error-summary empty-state">No errors recorded.</div>
+          </article>
+        </section>
+
+        <section class="tab-panel" data-panel="rows">
+          <article class="report-card">
+            <div class="panel-subheader">
+              <h3>Interesting Rows</h3>
+              <span class="hint">Errors and misclassifications are prioritized here</span>
+            </div>
+            <div class="table-wrap">
+              <table class="report-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>URL</th>
+                    <th>Score</th>
+                    <th>Prediction</th>
+                    <th>Ground Truth</th>
+                    <th>Result</th>
+                  </tr>
+                </thead>
+                <tbody id="rows-table-body">
+                  <tr>
+                    <td colspan="6" class="table-empty">No report rows yet.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <script src="/static/evaluation.js?v=20260317b"></script>
+</body>
+</html>

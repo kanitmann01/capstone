@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+requests
+beautifulsoup4
+python-whois
+dnspython
+urllib3
+jinja2
+pytest
+httpx
+joblib
+numpy
+pandas
+scikit-learn
+tensorboard
+tensorflow

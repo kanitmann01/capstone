@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Work+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css?v=20260317mc4">
+</head>
+<body class="page-ml" data-risk-tone="neutral">
+  <main class="container">
+    <header class="page-header page-header-wide page-ml-hero">
+      <div class="page-header-copy">
+        <p class="eyebrow">TensorFlow Classifier</p>
+        <h1>ML Lab</h1>
+        <p class="hint">Train, inspect, and compare TensorFlow phishing models from one control surface without leaving the scanner UI.</p>
+        <div class="hero-chip-row" aria-label="Lab workflow">
+          <span class="hero-chip hero-chip-signal">Feature extraction</span>
+          <span class="hero-chip">GPU or CPU training</span>
+          <span class="hero-chip">TensorBoard logging</span>
+          <span class="hero-chip">Model activation</span>
+          <span class="hero-chip">Live probe</span>
+        </div>
+      </div>
+      <div class="page-header-aside">
+        <nav class="topnav" aria-label="Primary">
+          {% for item in nav_items %}
+          <a
+            class="nav-link{% if active_page == item.id %} is-active{% endif %}"
+            href="{{ item.href }}"
+          >
+            {{ item.label }}
+          </a>
+          {% endfor %}
+        </nav>
+        <section class="scan-lens" aria-label="Lab guardrails">
+          <p class="scan-lens-label">Lab guardrails</p>
+          <div class="scan-lens-grid">
+            <span class="lens-pill">TensorBoard traces</span>
+            <span class="lens-pill">Device control</span>
+            <span class="lens-pill">Runtime probe</span>
+            <span class="lens-pill">Recent run recall</span>
+          </div>
+          <p class="scan-lens-note">The goal is a trainable phishing model with real run history, clear validation signals, and reproducible device-aware settings.</p>
+        </section>
+      </div>
+    </header>
+
+    <section class="card ml-stage">
+      <div class="ml-stage-copy">
+        <p class="eyebrow">Experiment Control</p>
+        <h2>Train a new TensorFlow phishing model.</h2>
+        <p class="hint">This flow builds a dense neural network on the extracted phishing features, logs the run to TensorBoard, and lets you choose whether training happens on CPU or an available GPU.</p>
+        <div class="quick-intel-row" aria-label="Experiment reminders">
+          <span class="quick-intel-label">Watch for:</span>
+          <span class="quick-intel-pill">Validation loss drift</span>
+          <span class="quick-intel-pill">GPU availability</span>
+          <span class="quick-intel-pill">Sparse phishing labels</span>
+        </div>
+      </div>
+
+      <form id="ml-form" class="ml-form">
+        <label class="file-drop-zone" for="ml-csv-file-input">
+          <input id="ml-csv-file-input" type="file" accept=".csv,text/csv">
+          <span class="file-drop-title">Choose labeled baseline CSV</span>
+          <span id="ml-file-summary" class="file-drop-subtitle">Upload a CSV with <code>url</code> and <code>is_phishing</code>.</span>
+        </label>
+
+        <section class="ml-form-section">
+          <div class="ml-form-section-copy">
+            <span class="metric-label">Core training controls</span>
+            <p class="hint">Start here for most runs. The defaults are tuned for quick iteration and readable TensorBoard history.</p>
+          </div>
+          <div class="ml-settings-grid">
+            <label class="field-block" for="device-input">
+              <span class="field-label">Training device</span>
+              <select id="device-input">
+                <option value="auto">Auto select</option>
+                <option value="cpu">CPU</option>
+              </select>
+            </label>
+
+            <label class="field-block" for="epochs-input">
+              <span class="field-label">Epochs</span>
+              <input id="epochs-input" type="number" min="1" max="500" value="20">
+            </label>
+
+            <label class="field-block" for="batch-size-input">
+              <span class="field-label">Batch size</span>
+              <input id="batch-size-input" type="number" min="1" max="4096" value="32">
+            </label>
+
+            <label class="field-block" for="learning-rate-input">
+              <span class="field-label">Learning rate</span>
+              <input id="learning-rate-input" type="number" min="0.000001" max="1" step="any" value="0.001">
+            </label>
+
+            <label class="field-block" for="test-size-input">
+              <span class="field-label">Test split</span>
+              <input id="test-size-input" type="number" min="0.05" max="0.45" step="0.01" value="0.20">
+            </label>
+          </div>
+        </section>
+
+        <details class="advanced-settings" id="advanced-settings">
+          <summary>Advanced training settings</summary>
+          <p class="hint">Use these when you want to shape the validation behavior, regularization, model width, or inference threshold.</p>
+          <div class="ml-settings-grid ml-settings-grid-advanced">
+            <label class="field-block" for="validation-split-input">
+              <span class="field-label">Validation split</span>
+              <input id="validation-split-input" type="number" min="0.05" max="0.45" step="0.01" value="0.20">
+            </label>
+
+            <label class="field-block" for="dropout-rate-input">
+              <span class="field-label">Dropout</span>
+              <input id="dropout-rate-input" type="number" min="0" max="0.9" step="0.01" value="0.15">
+            </label>
+
+            <label class="field-block" for="hidden-units-input">
+              <span class="field-label">Hidden units</span>
+              <input id="hidden-units-input" type="text" value="128,64" placeholder="128,64">
+            </label>
+
+            <label class="field-block" for="early-stopping-input">
+              <span class="field-label">Early stopping patience</span>
+              <input id="early-stopping-input" type="number" min="0" max="50" value="5">
+            </label>
+
+            <label class="field-block" for="threshold-input">
+              <span class="field-label">Classification threshold</span>
+              <input id="threshold-input" type="number" min="0.01" max="0.99" step="0.01" value="0.50">
+            </label>
+
+            <label class="field-block" for="random-state-input">
+              <span class="field-label">Random state</span>
+              <input id="random-state-input" type="number" min="0" max="999999" value="42">
+            </label>
+          </div>
+        </details>
+
+        <article class="current-url-card">
+          <span class="metric-label">TensorFlow runtime</span>
+          <strong id="ml-runtime-summary">Checking TensorFlow and GPU availability...</strong>
+          <span id="ml-runtime-note" class="runtime-note">The lab will choose sane defaults first, then expose deeper controls only when you need them.</span>
+        </article>
+
+        <label class="toggle-row" for="activate-model-input">
+          <input id="activate-model-input" type="checkbox" checked>
+          <span>Make this trained run the active runtime model when it finishes.</span>
+        </label>
+
+        <button id="start-ml-training" type="submit">Start ML Run</button>
+      </form>
+    </section>
+
+    <section id="ml-status" class="card muted status-panel" aria-live="polite">
+      <div class="status-shell">
+        <p class="eyebrow status-eyebrow">Lab Log</p>
+        <p id="ml-status-message" class="status-message">Load the current model overview or upload a labeled CSV to train a new TensorFlow run.</p>
+        <p id="ml-status-detail" class="status-detail">This panel will narrate training phases, model readiness, and what to inspect next.</p>
+      </div>
+    </section>
+
+    <section class="ml-overview-grid">
+      <article class="card active-model-card">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Active Runtime Model</p>
+            <h2>Deployment Snapshot</h2>
+          </div>
+          <div id="active-model-badge" class="summary-state">Checking</div>
+        </div>
+        <div id="active-model-metrics" class="summary-metric-grid"></div>
+        <div class="report-two-up">
+          <article class="report-card compact-card">
+            <div class="panel-subheader">
+              <h3>Top Runtime Features</h3>
+              <span class="hint">Most influential signals in the active model snapshot</span>
+            </div>
+            <div id="active-top-features" class="mini-bars empty-state">No model loaded yet.</div>
+          </article>
+          <article class="report-card compact-card">
+            <div class="panel-subheader">
+              <h3>Prediction Analytics</h3>
+              <span class="hint">Live counters from runtime inference</span>
+            </div>
+            <div id="active-model-analytics" class="summary-metric-grid compact-grid"></div>
+          </article>
+        </div>
+      </article>
+
+      <article class="card probe-card">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Current Model Probe</p>
+            <h2>Test A Single URL</h2>
+          </div>
+        </div>
+        <form id="ml-probe-form" class="probe-form">
+          <input id="ml-probe-url" type="text" placeholder="https://example.com/login" required>
+          <button id="run-ml-probe" type="submit">Run ML Scan</button>
+        </form>
+        <p class="hint probe-hint">Use this to sanity-check the active model before or after a training run.</p>
+        <div id="ml-probe-result" class="empty-state">Probe the active model to see prediction, probability, and extracted features.</div>
+      </article>
+    </section>
+
+    <section class="evaluation-grid ml-grid">
+      <section class="card progress-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Live Training</p>
+            <h2>Experiment Run</h2>
+          </div>
+          <div id="ml-job-badge" class="summary-state">Idle</div>
+        </div>
+
+        <div class="progress-meter">
+          <div id="ml-progress-fill" class="progress-fill"></div>
+        </div>
+        <div class="progress-meta">
+          <span id="ml-progress-text">No ML job running</span>
+          <span id="ml-progress-percent">0%</span>
+        </div>
+
+        <div class="kpi-grid">
+          <article class="kpi-card">
+            <span class="metric-label">Processed</span>
+            <strong id="ml-processed-count" class="kpi-value">0</strong>
+          </article>
+          <article class="kpi-card">
+            <span class="metric-label">Usable</span>
+            <strong id="ml-usable-count" class="kpi-value">0</strong>
+          </article>
+          <article class="kpi-card">
+            <span class="metric-label">Skipped</span>
+            <strong id="ml-skipped-count" class="kpi-value">0</strong>
+          </article>
+        </div>
+
+        <article class="current-url-card">
+          <span class="metric-label">Current Phase</span>
+          <strong id="ml-current-phase">Waiting for an experiment...</strong>
+        </article>
+
+        <article class="current-url-card">
+          <span class="metric-label">Current URL</span>
+          <strong id="ml-current-url">No active URL</strong>
+        </article>
+
+        <article class="check-runner-card">
+          <div class="panel-subheader">
+            <h3>Feature Extraction Signals</h3>
+            <span class="hint">Current check status for the URL being processed</span>
+          </div>
+          <div id="ml-check-list" class="check-list"></div>
+        </article>
+
+        <article class="recent-stream-card">
+          <div class="panel-subheader">
+            <h3>Recent Feature Rows</h3>
+            <span class="hint">Latest URLs that finished extraction</span>
+          </div>
+          <div id="ml-recent-rows" class="recent-stream empty-state">No rows processed yet.</div>
+        </article>
+      </section>
+
+      <section id="ml-report-shell" class="card report-shell hidden">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Training Report</p>
+            <h2>Experiment Outcome</h2>
+          </div>
+        </div>
+
+        <div class="tab-row" role="tablist" aria-label="ML report views">
+          <button class="tab-button is-active" type="button" data-ml-tab="overview">Overview</button>
+          <button class="tab-button" type="button" data-ml-tab="metrics">Metrics</button>
+          <button class="tab-button" type="button" data-ml-tab="features">Features</button>
+          <button class="tab-button" type="button" data-ml-tab="runs">Runs</button>
+        </div>
+
+        <section class="tab-panel is-active" data-ml-panel="overview">
+          <div id="ml-summary-cards" class="summary-metric-grid"></div>
+          <div class="report-two-up">
+            <article class="report-card">
+              <div class="panel-subheader">
+                <h3>Test Confusion Matrix</h3>
+                <span class="hint">Best quick read of classifier behavior</span>
+              </div>
+              <div id="ml-confusion-matrix" class="confusion-matrix"></div>
+            </article>
+            <article class="report-card">
+              <div class="panel-subheader">
+                <h3>Model Summary</h3>
+                <span class="hint">Architecture, device, and training depth for this run</span>
+              </div>
+              <div id="ml-tree-summary" class="summary-metric-grid compact-grid"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-ml-panel="metrics">
+          <div class="report-two-up">
+            <article class="report-card chart-card">
+              <div class="panel-subheader">
+                <h3>Loss By Epoch</h3>
+                <span class="hint">This should closely mirror the TensorBoard scalar trace</span>
+              </div>
+              <canvas id="ml-loss-chart" height="180"></canvas>
+            </article>
+            <article class="report-card chart-card">
+              <div class="panel-subheader">
+                <h3>Accuracy By Epoch</h3>
+                <span class="hint">Compare training and validation accuracy across the run</span>
+              </div>
+              <canvas id="ml-accuracy-chart" height="180"></canvas>
+            </article>
+          </div>
+          <div class="report-two-up">
+            <article class="report-card chart-card">
+              <div class="panel-subheader">
+                <h3>Train vs Validation vs Test</h3>
+                <span class="hint">Quick metric comparison after the final checkpoint is selected</span>
+              </div>
+              <canvas id="ml-metrics-chart" height="180"></canvas>
+            </article>
+            <article class="report-card chart-card">
+              <div class="panel-subheader">
+                <h3>Test Probability Distribution</h3>
+                <span class="hint">Binned by ground-truth label</span>
+              </div>
+              <canvas id="ml-distribution-chart" height="180"></canvas>
+            </article>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-ml-panel="features">
+          <div class="report-two-up">
+            <article class="report-card chart-card">
+              <div class="panel-subheader">
+                <h3>Feature Importance</h3>
+                <span class="hint">Permutation importance from the TensorFlow holdout set</span>
+              </div>
+              <canvas id="ml-feature-chart" height="220"></canvas>
+            </article>
+            <article class="report-card">
+              <div class="panel-subheader">
+                <h3>Hyperparameters</h3>
+                <span class="hint">Exact settings used for this experiment</span>
+              </div>
+              <div id="ml-hyperparameters" class="mini-bars empty-state">No completed run yet.</div>
+            </article>
+          </div>
+          <div class="report-two-up">
+            <article class="report-card">
+              <div class="panel-subheader">
+                <h3>Hardest Mistakes</h3>
+                <span class="hint">High-confidence misses are the fastest route to better features and thresholds</span>
+              </div>
+              <div id="ml-error-analysis" class="recent-stream empty-state">No completed run yet.</div>
+            </article>
+            <article class="report-card">
+              <div class="panel-subheader">
+                <h3>TensorBoard</h3>
+                <span class="hint">Open the run folder in TensorBoard to inspect scalars and the training graph</span>
+              </div>
+              <div id="ml-artifact-links" class="artifact-grid empty-state">No completed run yet.</div>
+            </article>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-ml-panel="runs">
+          <article class="report-card">
+            <div class="panel-subheader">
+              <h3>Recent Experiment Runs</h3>
+              <span class="hint">Compare the latest outcomes without leaving the lab</span>
+            </div>
+            <div id="ml-recent-runs" class="recent-stream empty-state">No saved runs yet.</div>
+          </article>
+          <article class="report-card">
+            <div class="panel-subheader">
+              <h3>Registry Highlights</h3>
+              <span class="hint">Best saved model snapshots across all completed runs</span>
+            </div>
+            <div id="ml-registry-highlights" class="summary-metric-grid empty-state">No saved models in the registry yet.</div>
+          </article>
+          <article class="report-card">
+            <div class="panel-subheader">
+              <h3>Compare Saved Models</h3>
+              <span class="hint">Persistent JSON-backed comparison for trained model versions</span>
+            </div>
+            <div id="ml-registry-compare" class="table-wrap empty-state">No saved model registry entries yet.</div>
+          </article>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script src="/static/ml.js?v=20260317mc4"></script>
+</body>
+</html>

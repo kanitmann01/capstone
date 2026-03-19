@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Packaging / build
+build/
+dist/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.cursor/
+.vscode/
+.idea/
+
+# Nested repos / vendored tooling (project-specific)
+agency-agents/
+
+# App caches / artifacts (project-specific)
+.cache/
+runs/
+
+# ML artifacts / logs (project-specific)
+tensorboard/
+**/tensorboard/
+*.tfevents.*
+*.keras
+*.h5
+*.joblib
+
+# Generated documents
+docs/*.docx

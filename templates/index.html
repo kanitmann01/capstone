@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css?v=20260317mc2">
+</head>
+<body class="page-scan" data-risk-tone="neutral">
+  <main class="container">
+    <header class="page-header page-scan-hero">
+      <div class="page-header-copy">
+        <p class="eyebrow">Realtime Triage</p>
+        <h1>Phishing Scanner</h1>
+        <p class="hint">Check a suspicious link fast, then review the strongest signals before anyone opens it.</p>
+        <p class="hint"><strong>Important:</strong> Treat the result as a confidence aid, not proof that a site is safe.</p>
+        <div class="hero-chip-row" aria-label="Primary scan signals">
+          <span class="hero-chip hero-chip-signal">Link structure</span>
+          <span class="hero-chip">Domain history</span>
+          <span class="hero-chip">Threat feeds</span>
+          <span class="hero-chip">Page content</span>
+        </div>
+      </div>
+      <div class="page-header-aside">
+        <nav class="topnav" aria-label="Primary">
+          {% for item in nav_items %}
+          <a
+            class="nav-link{% if active_page == item.id %} is-active{% endif %}"
+            href="{{ item.href }}"
+          >
+            {{ item.label }}
+          </a>
+          {% endfor %}
+        </nav>
+        <section class="scan-lens" aria-label="Signal stack">
+          <p class="scan-lens-label">Signal stack</p>
+          <div class="scan-lens-grid">
+            <span class="lens-pill">Lexical patterns</span>
+            <span class="lens-pill">SSL posture</span>
+            <span class="lens-pill">WHOIS age</span>
+            <span class="lens-pill">Threat intel</span>
+          </div>
+          <p class="scan-lens-note">When one strong signal says stop, treat the score as confirmation rather than permission.</p>
+        </section>
+      </div>
+    </header>
+
+    <form id="scan-form" class="command-bar">
+      <label class="command-input-shell" for="url-input">
+        <span class="field-label">Paste a suspicious link</span>
+        <input id="url-input" type="text" placeholder="https://example.com/login" required />
+        <span class="command-footnote">We normalize the address, inspect the strongest signals, and call out anything inconclusive.</span>
+      </label>
+      <button type="submit">Scan Link</button>
+      <button id="refresh-feeds" type="button">Refresh Feeds</button>
+    </form>
+
+    <section class="scan-helper-row" aria-label="Single-scan tips">
+      <span class="quick-intel-pill">Use full URLs when possible</span>
+      <span class="quick-intel-pill">Refresh feeds if results feel stale</span>
+      <a class="helper-link" href="/evaluate">Need to benchmark many URLs instead?</a>
+    </section>
+
+    <section id="quick-intel" class="quick-intel-row" aria-label="Helpful scan prompts">
+      <span class="quick-intel-label">Useful when the link includes:</span>
+      <span class="quick-intel-pill">Unexpected sign-in request</span>
+      <span class="quick-intel-pill">Invoice or payroll language</span>
+      <span class="quick-intel-pill">Urgent payment update</span>
+      <span class="quick-intel-pill">A shortener or lookalike domain</span>
+    </section>
+
+    <section id="status" class="card muted status-panel" aria-live="polite">
+      <div class="status-shell">
+        <p class="eyebrow status-eyebrow">Mission Log</p>
+        <p id="status-message" class="status-message">Ready.</p>
+        <p id="status-detail" class="status-detail">Paste a suspicious link to start triage.</p>
+      </div>
+    </section>
+
+    <section id="summary" class="summary-panel card hidden">
+      <div class="summary-header">
+        <div>
+          <p class="eyebrow">Combined verdict</p>
+          <h2>Scan Summary</h2>
+        </div>
+        <div id="summary-state" class="summary-state">Awaiting scan</div>
+      </div>
+
+      <div class="summary-grid">
+        <article class="risk-hero">
+          <div class="risk-meter" aria-hidden="true">
+            <div class="risk-meter-core">
+              <span class="metric-label">Risk Score / 100</span>
+              <span id="summary-risk" class="risk-value">0</span>
+            </div>
+          </div>
+          <div class="risk-hero-copy">
+            <span id="summary-band" class="risk-band">No scan yet</span>
+            <span id="summary-url" class="risk-url">-</span>
+          </div>
+        </article>
+
+        <div class="signal-grid">
+          <article class="signal-card analysis-card">
+            <span class="metric-label">What This Means</span>
+            <p id="summary-guidance" class="signal-copy">
+              Run a scan to get a plain-language assessment.
+            </p>
+          </article>
+
+          <article class="signal-card analysis-card">
+            <span class="metric-label">Recommended Action</span>
+            <p id="summary-action" class="signal-copy">
+              Review the verdict first, then inspect the detailed checks if needed.
+            </p>
+          </article>
+
+          <article class="signal-card">
+            <span class="metric-label">Contributing Checks</span>
+            <div id="summary-contrib" class="token-list"></div>
+          </article>
+
+          <article class="signal-card">
+            <span class="metric-label">Unknown Checks</span>
+            <div id="summary-unknown" class="token-list"></div>
+          </article>
+
+          <article class="signal-card">
+            <span class="metric-label">Feed Stale</span>
+            <div id="summary-stale" class="status-pill">Unknown</div>
+          </article>
+
+          <article class="signal-card">
+            <span class="metric-label">Refresh In Progress</span>
+            <div id="summary-refreshing" class="status-pill">Unknown</div>
+          </article>
+        </div>
+      </div>
+
+      <div class="meta-grid">
+        <article class="meta-card">
+          <span class="metric-label">Feed Refreshed</span>
+          <span id="summary-refresh" class="meta-value"></span>
+        </article>
+        <article class="meta-card">
+          <span class="metric-label">Feed Error</span>
+          <span id="summary-refresh-error" class="meta-value"></span>
+        </article>
+      </div>
+    </section>
+
+    <section id="details" class="card hidden">
+      <div class="panel-subheader">
+        <h2>Details</h2>
+        <span class="hint">Raw module output for deeper review and troubleshooting</span>
+      </div>
+      <pre id="details-json"></pre>
+    </section>
+  </main>
+
+  <script src="/static/app.js?v=20260317mc2"></script>
+</body>
+</html>
