@@ -13,17 +13,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Evaluate a held-out set of live URLs.")
     parser.add_argument("input_csv", help="Labeled CSV with url and is_phishing columns.")
     parser.add_argument("output_csv", help="Where to write the scored evaluation CSV.")
-    parser.add_argument("--threshold", type=float, default=50.0)
+    parser.add_argument("--threshold", type=float, default=None)
     return parser
 
 
 def main() -> int:
     args = build_parser().parse_args()
     service = AppService()
+    threshold = service.config.final_score_threshold if args.threshold is None else args.threshold
     result = evaluate_csv(
         input_csv=args.input_csv,
         output_csv=args.output_csv,
-        threshold=args.threshold,
+        threshold=threshold,
         scorer=lambda url, progress_callback=None: service.scan_url(url),
     )
     report = build_report_payload(result)

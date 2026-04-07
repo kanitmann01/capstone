@@ -19,6 +19,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = PROJECT_ROOT / "docs"
 OUTPUT_FILE = DOCS_DIR / "project-documentation.docx"
 SOURCE_FILES = [
+    "00-comprehensive-project-handbook.md",
     "README.md",
     "01-project-overview.md",
     "02-repository-tour.md",

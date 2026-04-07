@@ -73,7 +73,7 @@ def evaluate_csv(
     output_csv: str | Path,
     *,
     scorer: ScoreFunction,
-    threshold: float = 50.0,
+    threshold: float = 30.0,
     progress_callback: ProgressCallback | None = None,
 ) -> EvaluationResult:
     input_path = Path(input_csv)
@@ -252,6 +252,44 @@ def build_report_payload(result: EvaluationResult) -> dict[str, Any]:
             "fp": result.fp,
             "fn": result.fn,
         },
+        "threshold_sweep": build_threshold_sweep_payload(result),
         "false_positives": false_positives,
         "false_negatives": false_negatives,
     }
+
+
+def build_threshold_sweep_payload(
+    result: EvaluationResult,
+    thresholds: list[float] | None = None,
+) -> list[dict[str, Any]]:
+    sweep_thresholds = thresholds or [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90]
+    rows = [row for row in result.rows if row.risk_score is not None and row.actual_is_phishing is not None]
+    sweep: list[dict[str, Any]] = []
+    for threshold in sweep_thresholds:
+        tp = tn = fp = fn = 0
+        for row in rows:
+            predicted = float(row.risk_score or 0) >= float(threshold)
+            actual = bool(row.actual_is_phishing)
+            if actual and predicted:
+                tp += 1
+            elif not actual and not predicted:
+                tn += 1
+            elif predicted and not actual:
+                fp += 1
+            else:
+                fn += 1
+        counts = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}
+        metrics = {
+            "accuracy": round((tp + tn) / (tp + tn + fp + fn), 4) if (tp + tn + fp + fn) else 0.0,
+            "precision": round(tp / (tp + fp), 4) if tp + fp else 0.0,
+            "recall": round(tp / (tp + fn), 4) if tp + fn else 0.0,
+            "f1": round((2 * (tp / (tp + fp) if tp + fp else 0.0) * (tp / (tp + fn) if tp + fn else 0.0)) / ((tp / (tp + fp) if tp + fp else 0.0) + (tp / (tp + fn) if tp + fn else 0.0)), 4) if (tp + fp) and (tp + fn) and ((tp / (tp + fp)) + (tp / (tp + fn))) else 0.0,
+        }
+        sweep.append(
+            {
+                "threshold": float(threshold),
+                **counts,
+                **metrics,
+            }
+        )
+    return sweep

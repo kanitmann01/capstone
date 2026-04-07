@@ -32,7 +32,7 @@ class ScanResponse(BaseModel):
 class EvaluationJobRequest(BaseModel):
     filename: str
     csv_content: str
-    threshold: float = 50.0
+    threshold: float = 30.0
 
 
 class FastTextTrainingRequest(BaseModel):

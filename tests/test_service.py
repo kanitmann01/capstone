@@ -38,6 +38,7 @@ def test_scan_combined_with_progress_emits_check_events(tmp_path, monkeypatch):
         weights_ssl=0.0,
         weights_domain_age=0.0,
         weights_threat_intel=0.0,
+        weights_ml=0.0,
     )
     service = ScanService(settings, ThreatFeedCache(settings))
     events = []

@@ -192,7 +192,7 @@
         </label>
         <label class="command-input-shell" for="threshold-input">
           <span class="field-label">Decision threshold</span>
-          <input id="threshold-input" type="number" min="0" max="100" step="1" value="50" />
+          <input id="threshold-input" type="number" min="0" max="100" step="1" value="{{ evaluation_threshold or 30 }}" />
           <span class="command-footnote">Higher thresholds make the demo more selective; lower thresholds make it more sensitive.</span>
         </label>
         <button id="start-evaluation" type="submit">Run Evaluation</button>

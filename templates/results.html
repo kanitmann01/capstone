@@ -202,6 +202,20 @@
       </div>
       {% endif %}
     </section>
+
+    {% if report.threshold_sweep %}
+    <section class="card">
+      <div class="panel-subheader">
+        <h2>Threshold Sweep</h2>
+        <span class="hint">Recall-first comparison across decision thresholds</span>
+      </div>
+      <div class="token-list">
+        {% for item in report.threshold_sweep %}
+        <span class="token">{{ item.threshold }} | P {{ item.precision }} | R {{ item.recall }} | F1 {{ item.f1 }}</span>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
   </main>
 </body>
 </html>

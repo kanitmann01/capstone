@@ -82,6 +82,12 @@ class ThreatFeedCache:
             except Exception as exc:
                 errors.append(f"openphish: {exc}")
 
+        if self.settings.phishtank_enabled:
+            try:
+                self._ingest_phishtank(new_index)
+            except Exception as exc:
+                errors.append(f"phishtank: {exc}")
+
         if self.settings.vt_enabled:
             try:
                 self._ingest_vt_snapshot(
@@ -188,6 +194,55 @@ class ThreatFeedCache:
                     "label": "positive",
                     "source_count": None,
                     "value": line.strip(),
+                },
+            )
+
+    def _ingest_phishtank(self, index: FeedIndex) -> None:
+        request_url = self.settings.phishtank_data_url
+        if "{app_key}" in request_url:
+            if not self.settings.phishtank_app_key:
+                return
+            request_url = request_url.format(app_key=self.settings.phishtank_app_key)
+
+        response = requests.get(
+            request_url,
+            timeout=self.settings.request_timeout_seconds,
+            headers={
+                "User-Agent": "CapstonePhishingDetector/1.0 (+https://cursor.local)",
+                "Accept": "application/json, text/plain;q=0.9, */*;q=0.8",
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if isinstance(payload, dict):
+            entries = payload.get("results") or payload.get("data") or []
+        else:
+            entries = payload
+        if not isinstance(entries, list):
+            return
+
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            value = str(entry.get("url") or "").strip()
+            parsed = normalize_feed_value(value)
+            if not parsed:
+                continue
+            kind, key = parsed
+            index.add_entry(
+                kind,
+                key,
+                {
+                    "feed": "phishtank",
+                    "label": "positive",
+                    "source_count": None,
+                    "value": value,
+                    "phish_detail_url": entry.get("phish_detail_url") or entry.get("phish_detail_page") or "",
+                    "submission_time": entry.get("submission_time") or entry.get("submitted_at") or "",
+                    "verification_time": entry.get("verification_time") or entry.get("verified_at") or "",
+                    "verified": entry.get("verified"),
+                    "online": entry.get("online"),
+                    "target": entry.get("target") or "",
                 },
             )
 

@@ -20,7 +20,19 @@ from pipeline.modeling.fasttext_train import train_fasttext_model
 from pipeline.modeling.inference import FastTextDetector
 from pipeline.shared.config import CapstoneConfig
 from scanner.dataset_store import BrandLoginDatasetStore
+from scanner.dataset_store import SnapshotRecord
+from scanner.domain_age import DomainAgeScanner
+from scanner.feed_ingest import ThreatFeedCache
+from scanner.heuristics import URLHeuristics
+from scanner.ml_features import extract_features
+from scanner.ml_model import MLScanner
+from scanner.normalization import normalize_input_url
 from scanner.settings import ScannerSettings
+from scanner.ssl_check import SSLValidator
+from scanner.threat_intel import ThreatIntelScanner
+
+
+PIPELINE_VERSION = "unified_pipeline_v1"
 
 
 class AppService:
@@ -28,63 +40,104 @@ class AppService:
         self.config = config or CapstoneConfig.from_env()
         self.scanner_settings = ScannerSettings.from_env()
         self.dataset_store = BrandLoginDatasetStore(self.config.dataset_db_path)
+        self.feed_cache = ThreatFeedCache(self.scanner_settings)
         self.detector = FastTextDetector(self.config.fasttext_model_path, threshold=self.config.fasttext_threshold)
+        self.structured_ml = MLScanner(self.scanner_settings)
         self.latest_evaluation_report: dict[str, Any] | None = None
 
-    def scan_url(self, raw_url: str) -> dict[str, Any]:
+    def scan_url(self, raw_url: str, *, persist: bool = True, source: str = "live_scan") -> dict[str, Any]:
         snapshot = extract_page_snapshot(raw_url, self.scanner_settings)
+        target = normalize_input_url(raw_url)
         rules = score_rules(snapshot)
-        text = serialize_snapshot(snapshot)
-        fasttext_prediction = self.detector.predict_text(text)
+        fasttext_prediction = self.detector.predict_text(serialize_snapshot(snapshot))
+        legacy_checks = self._run_legacy_checks(target, snapshot)
+        structured_ml = self._run_structured_ml(target, legacy_checks)
+        scores = self._score_components(rules, fasttext_prediction, legacy_checks, structured_ml)
+        verdict = self._build_verdict(scores, rules, fasttext_prediction, structured_ml)
         override_brand = self._official_domain_override(snapshot)
-        if fasttext_prediction is None:
-            risk_score = float(rules["risk_score"])
-            prediction = {
-                "status": "unknown",
-                "unknown_reason": "model_unavailable",
-                "risk_score": 0.0,
-                "prediction": "unknown",
-                "probability": 0.0,
-            }
-        else:
-            risk_score = float(fasttext_prediction.score)
-            prediction = {
+        override_applied = False
+        override_reason = ""
+        if override_brand:
+            override_applied = True
+            override_reason = f"official domain match for {override_brand}"
+            scores["final"] = 0.0
+            verdict = {
                 "status": "ok",
-                **fasttext_prediction.as_dict(),
+                "label": "clean",
+                "threshold": float(self.config.final_score_threshold),
+                "final_score": 0.0,
+                "reason": override_reason,
+                "signals": ["official_domain_match"],
+            }
+        elif snapshot.get("free_host") and snapshot.get("brand_mismatch"):
+            override_applied = True
+            override_reason = "free host with brand mismatch"
+            scores["final"] = 100.0
+            verdict = {
+                "status": "ok",
+                "label": "phishing",
+                "threshold": float(self.config.final_score_threshold),
+                "final_score": 100.0,
+                "reason": override_reason,
+                "signals": ["free_host", "brand_mismatch"],
             }
 
-        hybrid_score = round((risk_score + float(rules["risk_score"])) / 2, 2)
-        override_applied = bool(override_brand)
-        final_prediction = prediction.get("label") or prediction.get("prediction") or "unknown"
-        final_risk_score = round(risk_score, 2)
-        final_hybrid_score = hybrid_score
-        override_reason = ""
-        if override_applied:
-            final_prediction = "clean"
-            final_risk_score = 0.0
-            final_hybrid_score = 0.0
-            override_reason = f"official domain match for {override_brand}"
+        fasttext_payload = self._fasttext_payload(fasttext_prediction)
+        checks = self._build_check_map(snapshot, legacy_checks, rules, fasttext_payload, structured_ml)
+        contributing_checks = self._contributing_checks(snapshot, rules, fasttext_payload, legacy_checks, structured_ml)
+        unknown_checks = self._unknown_checks(snapshot, fasttext_payload, legacy_checks, structured_ml)
+
+        final_score = float(scores["final"])
         result = {
             "url": snapshot["normalized_url"],
-            "risk_score": final_risk_score,
-            "hybrid_score": final_hybrid_score,
-            "prediction": final_prediction,
+            "risk_score": round(final_score, 2),
+            "hybrid_score": round(final_score, 2),
+            "prediction": verdict["label"],
+            "verdict": verdict,
+            "scores": scores,
             "rules": rules,
-            "fasttext": prediction,
+            "fasttext": fasttext_payload,
             "brand_impersonation": snapshot["brand_impersonation"],
-            "details": snapshot,
-            "contributing_checks": self._contributing_checks(snapshot, rules, prediction),
-            "unknown_checks": self._unknown_checks(snapshot, prediction),
+            "details": {
+                **snapshot,
+                "checks": checks,
+                "scores": scores,
+                "verdict": verdict,
+                "rules": rules,
+                "fasttext": fasttext_payload,
+            },
+            "checks": checks,
+            "contributing_checks": contributing_checks,
+            "unknown_checks": unknown_checks,
             "feed_freshness": self._feed_freshness(),
             "override_applied": override_applied,
             "override_reason": override_reason,
+            "artifacts": {
+                "persisted": False,
+                "record_id": None,
+                "source": source,
+                "pipeline_version": PIPELINE_VERSION,
+            },
         }
+
+        if persist:
+            record_id = self._persist_scan(snapshot=snapshot, result=result, source=source)
+            result["artifacts"]["persisted"] = True
+            result["artifacts"]["record_id"] = record_id
+
         return result
 
-    def scan_combined(self, raw_url: str) -> dict[str, Any]:
-        return self.scan_url(raw_url)
+    def scan_combined(self, raw_url: str, *, persist: bool = True) -> dict[str, Any]:
+        return self.scan_url(raw_url, persist=persist, source="api_scan")
 
-    def _contributing_checks(self, snapshot: dict[str, Any], rules: dict[str, Any], prediction: dict[str, Any]) -> list[str]:
+    def _contributing_checks(
+        self,
+        snapshot: dict[str, Any],
+        rules: dict[str, Any],
+        prediction: dict[str, Any],
+        legacy_checks: dict[str, dict[str, Any]],
+        structured_ml: dict[str, Any],
+    ) -> list[str]:
         checks: list[str] = []
         if snapshot.get("free_host"):
             checks.append("free_host")
@@ -98,15 +151,211 @@ class AppService:
             checks.append("rules")
         if prediction and prediction.get("status") == "ok":
             checks.append("fasttext")
-        return checks
+        if structured_ml.get("status") == "ok" and float(structured_ml.get("risk_score") or 0) > 0:
+            checks.append("structured_ml")
+        for name, result in legacy_checks.items():
+            if result.get("status", "ok") == "ok" and float(result.get("risk_score") or 0) > 0:
+                checks.append(name)
+        return list(dict.fromkeys(checks))
 
-    def _unknown_checks(self, snapshot: dict[str, Any], prediction: dict[str, Any]) -> list[str]:
+    def _unknown_checks(
+        self,
+        snapshot: dict[str, Any],
+        prediction: dict[str, Any],
+        legacy_checks: dict[str, dict[str, Any]],
+        structured_ml: dict[str, Any],
+    ) -> list[str]:
         unknown: list[str] = []
         if not snapshot.get("content", {}).get("content_fetched", True):
             unknown.append("content")
         if prediction.get("status") != "ok":
             unknown.append("fasttext")
-        return unknown
+        if structured_ml.get("status") != "ok":
+            unknown.append("structured_ml")
+        for name, result in legacy_checks.items():
+            if result.get("status", "ok") != "ok":
+                unknown.append(name)
+        return list(dict.fromkeys(unknown))
+
+    def _run_legacy_checks(self, target, snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        content = snapshot.get("content") or {}
+        return {
+            "heuristics": URLHeuristics(target).run_checks(),
+            "content": content,
+            "ssl": SSLValidator(target, self.scanner_settings).run_checks(),
+            "domain_age": DomainAgeScanner(target).run_checks(),
+            "threat_intel": ThreatIntelScanner(target, self.feed_cache).run_checks(),
+        }
+
+    def _run_structured_ml(self, target, legacy_checks: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        try:
+            features = extract_features(target, legacy_checks)
+            return self.structured_ml.scan(features)
+        except Exception as exc:
+            return {
+                "status": "unknown",
+                "unknown_reason": "structured_ml_unavailable",
+                "error": str(exc),
+                "risk_score": 0.0,
+                "prediction": "unknown",
+            }
+
+    def _score_components(
+        self,
+        rules: dict[str, Any],
+        fasttext_prediction: Any,
+        legacy_checks: dict[str, dict[str, Any]],
+        structured_ml: dict[str, Any],
+    ) -> dict[str, Any]:
+        rules_score = float(rules.get("risk_score") or 0)
+        fasttext_score = self._safe_prediction_score(fasttext_prediction)
+        legacy_score, legacy_contributing, legacy_unknown = self._weighted_legacy_score(legacy_checks)
+        structured_score = float(structured_ml.get("risk_score") or 0) if structured_ml.get("status") == "ok" else None
+        component_values = {
+            "rules": rules_score,
+            "fasttext": fasttext_score,
+            "legacy": legacy_score,
+            "structured_ml": structured_score,
+        }
+        numerator = 0.0
+        denominator = 0.0
+        available_components: list[str] = []
+        weights = {
+            "rules": 0.35,
+            "fasttext": 0.35,
+            "legacy": 0.20,
+            "structured_ml": 0.10,
+        }
+        for name, score in component_values.items():
+            if score is None:
+                continue
+            available_components.append(name)
+            weight = weights.get(name, 0.0)
+            numerator += float(score) * float(weight)
+            denominator += float(weight)
+        final_score = round(numerator / denominator, 2) if denominator else 0.0
+        return {
+            "final": final_score,
+            "rules": round(rules_score, 2),
+            "fasttext": round(float(fasttext_score), 2) if fasttext_score is not None else None,
+            "legacy": round(float(legacy_score), 2),
+            "structured_ml": round(float(structured_score), 2) if structured_score is not None else None,
+            "available_components": available_components,
+            "legacy_contributing_checks": legacy_contributing,
+            "legacy_unknown_checks": legacy_unknown,
+        }
+
+    def _build_verdict(
+        self,
+        scores: dict[str, Any],
+        rules: dict[str, Any],
+        fasttext_prediction: Any,
+        structured_ml: dict[str, Any],
+    ) -> dict[str, Any]:
+        signals = list(rules.get("reasons") or [])
+        if fasttext_prediction is not None:
+            signals.append(f"FastText score {scores['fasttext']:.2f}")
+        if structured_ml.get("status") == "ok":
+            signals.append(f"Structured ML score {scores['structured_ml']:.2f}")
+        if scores.get("legacy_contributing_checks"):
+            signals.extend(scores["legacy_contributing_checks"])
+        label = "phishing" if float(scores["final"]) >= float(self.config.final_score_threshold) else "clean"
+        return {
+            "status": "ok" if scores.get("available_components") else "unknown",
+            "label": label,
+            "threshold": float(self.config.final_score_threshold),
+            "final_score": float(scores["final"]),
+            "reason": "; ".join(dict.fromkeys(signals[:8])) or "Composite score",
+            "signals": list(dict.fromkeys(signals[:12])),
+        }
+
+    def _build_check_map(
+        self,
+        snapshot: dict[str, Any],
+        legacy_checks: dict[str, dict[str, Any]],
+        rules: dict[str, Any],
+        fasttext_prediction: dict[str, Any],
+        structured_ml: dict[str, Any],
+    ) -> dict[str, dict[str, Any]]:
+        checks = dict(legacy_checks)
+        checks["rules"] = rules
+        checks["fasttext"] = fasttext_prediction
+        checks["structured_ml"] = structured_ml
+        checks["brand_impersonation"] = snapshot.get("brand_impersonation") or {}
+        return checks
+
+    def _persist_scan(self, *, snapshot: dict[str, Any], result: dict[str, Any], source: str) -> int:
+        record = SnapshotRecord.create(
+            url=snapshot.get("url") or snapshot.get("normalized_url") or "",
+            normalized_url=snapshot.get("normalized_url") or snapshot.get("url") or "",
+            host=snapshot.get("host") or "",
+            source_feed=source,
+            source_label=str(result.get("prediction") or "unknown"),
+            source_pipeline="app_service",
+            pipeline_version=PIPELINE_VERSION,
+            raw_html=snapshot.get("raw_html", ""),
+            visible_text=snapshot.get("visible_text", ""),
+            page_title=snapshot.get("page_title", ""),
+            detected_brand=snapshot.get("detected_brand", ""),
+            host_provider=snapshot.get("host_provider", ""),
+            risk_score=float(result.get("risk_score") or 0),
+            prediction=str(result.get("prediction") or "unknown"),
+            extraction={
+                "rules": result.get("rules"),
+                "scores": result.get("scores"),
+                "brand_impersonation": result.get("brand_impersonation"),
+                "checks": result.get("checks"),
+                "feed_freshness": result.get("feed_freshness"),
+                "override_applied": result.get("override_applied"),
+                "override_reason": result.get("override_reason"),
+            },
+            label=1 if result.get("prediction") == "phishing" else 0 if result.get("prediction") == "clean" else None,
+            notes=str(result.get("verdict", {}).get("reason") or ""),
+        )
+        return self.dataset_store.add_snapshot(record)
+
+    def _fasttext_payload(self, fasttext_prediction: Any) -> dict[str, Any]:
+        if fasttext_prediction is None:
+            return {
+                "status": "unknown",
+                "unknown_reason": "model_unavailable",
+                "risk_score": 0.0,
+                "prediction": "unknown",
+                "probability": 0.0,
+            }
+        return {"status": "ok", **fasttext_prediction.as_dict()}
+
+    def _safe_prediction_score(self, fasttext_prediction: Any) -> float | None:
+        if fasttext_prediction is None:
+            return None
+        return float(getattr(fasttext_prediction, "score", 0.0) or 0.0)
+
+    def _weighted_legacy_score(self, legacy_checks: dict[str, dict[str, Any]]) -> tuple[float, list[str], list[str]]:
+        weights = {
+            "heuristics": self.scanner_settings.weights_heuristics,
+            "content": self.scanner_settings.weights_content,
+            "ssl": self.scanner_settings.weights_ssl,
+            "domain_age": self.scanner_settings.weights_domain_age,
+            "threat_intel": self.scanner_settings.weights_threat_intel,
+        }
+        numerator = 0.0
+        denominator = 0.0
+        contributing: list[str] = []
+        unknown: list[str] = []
+        for name, result in legacy_checks.items():
+            status = result.get("status", "ok")
+            if status != "ok":
+                unknown.append(name)
+                continue
+            weight = float(weights.get(name, 0.0))
+            if weight <= 0:
+                continue
+            numerator += float(result.get("risk_score") or 0) * weight
+            denominator += weight
+            contributing.append(name)
+        if denominator == 0:
+            return 0.0, contributing, unknown
+        return numerator / denominator, contributing, unknown
 
     def _official_domain_override(self, snapshot: dict[str, Any]) -> str:
         brand_summary = snapshot.get("brand_impersonation") or {}
@@ -117,11 +366,13 @@ class AppService:
         return ""
 
     def _feed_freshness(self) -> dict[str, Any]:
+        metadata = self.feed_cache.metadata()
         return {
-            "last_refresh_utc": None,
-            "refresh_error": None,
-            "stale_cache": False,
-            "refresh_in_progress": False,
+            "last_refresh_utc": metadata.get("last_refresh_utc"),
+            "refresh_error": metadata.get("refresh_error"),
+            "stale_cache": bool(metadata.get("stale_cache", False)),
+            "refresh_in_progress": bool(metadata.get("refresh_in_progress", False)),
+            "cache_dir": metadata.get("cache_dir"),
         }
 
     def dataset_summary(self) -> dict[str, Any]:
@@ -224,14 +475,19 @@ class AppService:
             "hyperparameters": metadata["hyperparameters"],
         }
 
-    def evaluate_csv(self, *, input_csv: str | Path, output_csv: str | Path, threshold: float = 50.0) -> dict[str, Any]:
+    def evaluate_csv(self, *, input_csv: str | Path, output_csv: str | Path, threshold: float | None = None) -> dict[str, Any]:
         from pipeline.evaluation.evaluate import evaluate_csv, build_report_payload
 
         def scorer(url: str, progress_callback=None):
             del progress_callback
             return self.scan_url(url)
 
-        result = evaluate_csv(input_csv=input_csv, output_csv=output_csv, scorer=scorer, threshold=threshold)
+        result = evaluate_csv(
+            input_csv=input_csv,
+            output_csv=output_csv,
+            scorer=scorer,
+            threshold=float(self.config.final_score_threshold if threshold is None else threshold),
+        )
         report = build_report_payload(result)
         self.latest_evaluation_report = report
         return report
@@ -249,7 +505,9 @@ class AppService:
             "model_path": str(self.config.fasttext_model_path),
             "metadata_path": str(self.config.fasttext_metadata_path),
             "metadata": metadata,
-            "threshold": self.config.fasttext_threshold,
+            "threshold": self.config.final_score_threshold,
+            "fasttext_threshold": self.config.fasttext_threshold,
+            "structured_ml": self.structured_ml.analytics(),
         }
 
     def _read_labeled_rows(self, input_path: Path) -> list[dict[str, Any]]:

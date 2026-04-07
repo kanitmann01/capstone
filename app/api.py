@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import FastAPI
 from fastapi import HTTPException
@@ -13,7 +15,6 @@ from fastapi.templating import Jinja2Templates
 
 from app.schemas import EvaluationJobRequest
 from app.schemas import FastTextTrainingRequest
-from app.schemas import ScanResponse
 from app.schemas import URLRequest
 from app.service import AppService
 
@@ -90,11 +91,11 @@ async def ml_page(request: Request):
     return await results_page(request)
 
 
-@app.post("/scan/combined", response_model=ScanResponse)
+@app.post("/scan/combined")
 async def scan_combined(request: URLRequest):
     if not request.url.strip():
         raise HTTPException(status_code=400, detail="URL is required.")
-    return scan_service.scan_combined(request.url, persist=request.persist)
+    return scan_service.scan_combined(request.url)
 
 
 @app.get("/dataset/summary")
@@ -122,15 +123,34 @@ async def evaluate(request: EvaluationJobRequest):
     output_path = tmp_dir / f"{Path(request.filename or 'evaluation.csv').stem}_scored.csv"
     input_path.write_text(request.csv_content, encoding="utf-8")
     report = service.evaluate_csv(input_csv=input_path, output_csv=output_path, threshold=request.threshold)
+    eval_root = service.config.evaluation_dir.resolve()
+    try:
+        output_path.resolve().relative_to(eval_root)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Evaluation output path is outside the configured evaluation directory.",
+        ) from exc
     return {
         "report": report,
-        "download_url": f"/evaluate/download?path={output_path.as_posix()}",
+        "download_url": f"/evaluate/download?file={quote(output_path.name)}",
     }
 
 
+_EVAL_DOWNLOAD_NAME = re.compile(r"^[A-Za-z0-9._-]+\.csv$")
+
+
 @app.get("/evaluate/download")
-async def evaluate_download(path: str):
-    file_path = Path(path)
+async def evaluate_download(file: str):
+    if not file or not _EVAL_DOWNLOAD_NAME.fullmatch(file):
+        raise HTTPException(status_code=400, detail="Invalid file name.")
+    ad_hoc = (service.config.evaluation_dir / "ad_hoc").resolve()
+    file_path = (ad_hoc / file).resolve()
+    try:
+        if not file_path.is_relative_to(ad_hoc):
+            raise HTTPException(status_code=400, detail="Invalid download path.")
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid download path.") from exc
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Scored CSV file was not found.")
     if file_path.suffix.lower() != ".csv":

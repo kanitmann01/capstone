@@ -10,6 +10,9 @@ class ScannerSettings:
     openphish_url: str = (
         "https://raw.githubusercontent.com/openphish/public_feed/refs/heads/main/feed.txt"
     )
+    phishtank_enabled: bool = True
+    phishtank_data_url: str = "https://data.dev.phishtank.com/data/online-valid.json"
+    phishtank_app_key: str = ""
     vt_enabled: bool = True
     vt_base_url: str = "https://netstar.one/vt"
     vt_pos_file: str = ""
@@ -54,6 +57,12 @@ class ScannerSettings:
                 "OPENPHISH_URL",
                 "https://raw.githubusercontent.com/openphish/public_feed/refs/heads/main/feed.txt",
             ),
+            phishtank_enabled=_bool_env("PHISHTANK_ENABLED", True),
+            phishtank_data_url=os.getenv(
+                "PHISHTANK_DATA_URL",
+                "https://data.dev.phishtank.com/data/online-valid.json",
+            ),
+            phishtank_app_key=os.getenv("PHISHTANK_APP_KEY", ""),
             vt_enabled=_bool_env("VT_ENABLED", True),
             vt_base_url=os.getenv("VT_BASE_URL", "https://netstar.one/vt"),
             vt_pos_file=os.getenv("VT_POS_FILE", ""),
