@@ -11,28 +11,30 @@ are:
 - `static/`: frontend JavaScript and CSS
 - `tests/`: automated tests for API, feed ingestion, SSL, and evaluation
 - `docs/`: multi-page documentation authored for this project
+- `old-data/`: archived legacy datasets and generated outputs
 - `ai/memory-bank/`: internal project notes and task tracking
 - `agency-agents/`: ancillary imported agent library
 - `.cache/`: threat-intelligence cache persistence
-- `main.py`: FastAPI entry point
+- `app/api.py`: FastAPI entry point
+- `app/service.py`: capstone orchestration service
+- `pipeline/`: dataset, extraction, modeling, and evaluation pipeline
 - `evaluate_baseline.py`: baseline scoring CLI
 - `README.md`: operational quickstart
-- `baseline.csv`: labeled evaluation input data
-- `baseline_scored.csv`: enriched evaluation output artifact
 - `install.sh`: root-level installer for the ancillary agent ecosystem
 
 ## Runtime-Critical Areas
 
-Only a subset of the repository participates in scanner execution:
+Only a subset of the repository participates in the capstone runtime:
 
-- `main.py`
+- `app/`
+- `pipeline/`
 - `scanner/`
 - `templates/`
 - `static/`
 - `requirements.txt`
 
-The scanner may also read and write under `.cache/` during threat-feed refresh
-and lookup operations.
+The capstone may also read and write under `.cache/` during snapshot,
+training, and evaluation workflows.
 
 ## Supporting Project Assets
 
@@ -41,10 +43,9 @@ the request path for a normal scan:
 
 - `tests/`
 - `evaluate_baseline.py`
-- `baseline.csv`
-- `baseline_scored.csv`
 - `ai/memory-bank/`
 - `README.md`
+- `old-data/`
 
 ## Ancillary Imported Content
 
@@ -76,23 +77,24 @@ That boundary helps avoid two common documentation mistakes:
 
 ### Application bootstrap
 
-- `main.py`
+- `app/api.py`
 
 ### Core scanning logic
 
-- `scanner/service.py`
-- `scanner/normalization.py`
-- `scanner/heuristics.py`
+- `app/service.py`
 - `scanner/content.py`
-- `scanner/ssl_check.py`
-- `scanner/domain_age.py`
-- `scanner/threat_intel.py`
+- `scanner/normalization.py`
 - `scanner/feed_ingest.py`
 - `scanner/settings.py`
+- `pipeline/extraction/`
+- `pipeline/modeling/`
+- `pipeline/evaluation/`
 
 ### User interface
 
 - `templates/index.html`
+- `templates/dataset.html`
+- `templates/results.html`
 - `static/app.js`
 - `static/styles.css`
 

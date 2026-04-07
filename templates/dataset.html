@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css?v=20260407ui1">
+</head>
+<body class="page-dataset">
+  <main class="container">
+    <header class="page-header page-header-wide">
+      <div class="page-header-copy">
+        <p class="eyebrow">Dataset & Analysis</p>
+        <h1>Snapshot store and evaluation workflow</h1>
+        <p class="hint">This page shows the labeled snapshot dataset, recent captures, provenance counts, and the batch evaluation flow used for the capstone review.</p>
+      </div>
+      <div class="page-header-aside">
+        <nav class="topnav" aria-label="Primary">
+          {% for item in nav_items %}
+          <a class="nav-link{% if active_page == item.id %} is-active{% endif %}" href="{{ item.href }}">{{ item.label }}</a>
+          {% endfor %}
+        </nav>
+      </div>
+    </header>
+
+    {% set summary = dataset_summary or {} %}
+    <section class="summary-panel card">
+      <div class="summary-header">
+        <div>
+          <p class="eyebrow">SQLite Dataset</p>
+          <h2>Current snapshot state</h2>
+        </div>
+      </div>
+      <div class="summary-grid">
+        <article class="signal-card">
+          <span class="metric-label">Total Rows</span>
+          <strong>{{ summary.total_rows or 0 }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Phishing Rows</span>
+          <strong>{{ summary.phishing_rows or 0 }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Legitimate Rows</span>
+          <strong>{{ summary.legitimate_rows or 0 }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Brands Seen</span>
+          <strong>{{ summary.brand_count or 0 }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Host Providers</span>
+          <strong>{{ summary.host_provider_count or 0 }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Source Pipelines</span>
+          <strong>{{ summary.source_pipeline_count or 0 }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Pipeline Versions</span>
+          <strong>{{ summary.pipeline_version_count or 0 }}</strong>
+        </article>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="panel-subheader">
+        <h2>Why This Dataset Matters</h2>
+        <span class="hint">How snapshots become a supervised FastText corpus</span>
+      </div>
+      <div class="token-list">
+        <span class="token">Capture the page before it disappears</span>
+        <span class="token">Store HTML, text, brand, and host signals in SQLite</span>
+        <span class="token">Serialize labels into FastText training lines</span>
+        <span class="token">Compare model predictions against a rules baseline</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="panel-subheader">
+        <h2>Top Brands</h2>
+        <span class="hint">Most frequent brand candidates in the snapshot store</span>
+      </div>
+      <div class="token-list">
+        {% for item in summary.top_brands or [] %}
+        <span class="token">{{ item.detected_brand }} ({{ item.row_count }})</span>
+        {% else %}
+        <span class="token">No brand rows yet</span>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="panel-subheader">
+        <h2>Top Hosts</h2>
+        <span class="hint">Common hosting providers in the captured snapshot set</span>
+      </div>
+      <div class="token-list">
+        {% for item in summary.top_host_providers or [] %}
+        <span class="token">{{ item.host_provider }} ({{ item.row_count }})</span>
+        {% else %}
+        <span class="token">No host rows yet</span>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="panel-subheader">
+        <h2>Top Pipelines</h2>
+        <span class="hint">Where the stored snapshots came from</span>
+      </div>
+      <div class="token-list">
+        {% for item in summary.top_source_pipelines or [] %}
+        <span class="token">{{ item.source_pipeline }} ({{ item.row_count }})</span>
+        {% else %}
+        <span class="token">No pipeline rows yet</span>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="panel-subheader">
+        <h2>Pipeline Versions</h2>
+        <span class="hint">Snapshot versions stored in SQLite</span>
+      </div>
+      <div class="token-list">
+        {% for item in summary.top_pipeline_versions or [] %}
+        <span class="token">{{ item.pipeline_version }} ({{ item.row_count }})</span>
+        {% else %}
+        <span class="token">No pipeline versions yet</span>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="panel-subheader">
+        <h2>Recent Captures</h2>
+        <span class="hint">The latest rows stored in SQLite for dataset review</span>
+      </div>
+      <div class="table-shell">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>URL</th>
+              <th>Brand</th>
+              <th>Host</th>
+              <th>Label</th>
+              <th>Captured</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in dataset_recent_rows or [] %}
+            <tr>
+              <td class="table-url">{{ row.normalized_url or row.url }}</td>
+              <td>{{ row.detected_brand or "Unknown" }}</td>
+              <td>{{ row.host_provider or row.host }}</td>
+              <td>
+                {% if row.label == 1 %}
+                  phishing
+                {% elif row.label == 0 %}
+                  clean
+                {% else %}
+                  unlabeled
+                {% endif %}
+              </td>
+              <td>{{ row.captured_at_utc or row.captured_at or "n/a" }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="5">No snapshot rows captured yet.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="panel-subheader">
+        <h2>Batch Evaluation</h2>
+        <span class="hint">Upload a labeled CSV and run the reviewer workflow inside the UI</span>
+      </div>
+
+      <form id="evaluation-form" class="command-bar command-bar-stack">
+        <label class="command-input-shell" for="csv-file-input">
+          <span class="field-label">Choose a labeled CSV</span>
+          <input id="csv-file-input" type="file" accept=".csv,text/csv" />
+          <span id="file-summary" class="command-footnote">Use a CSV with `url` and `is_phishing` columns.</span>
+        </label>
+        <label class="command-input-shell" for="threshold-input">
+          <span class="field-label">Decision threshold</span>
+          <input id="threshold-input" type="number" min="0" max="100" step="1" value="50" />
+          <span class="command-footnote">Higher thresholds make the demo more selective; lower thresholds make it more sensitive.</span>
+        </label>
+        <button id="start-evaluation" type="submit">Run Evaluation</button>
+      </form>
+
+      <section id="eval-status" class="card muted status-panel" aria-live="polite">
+        <div class="status-shell">
+          <p class="eyebrow status-eyebrow">Evaluation Log</p>
+          <p id="eval-status-message" class="status-message">Ready.</p>
+          <p id="eval-status-detail" class="status-detail">Upload a CSV to score it against the current detector.</p>
+        </div>
+      </section>
+
+      <section id="report-shell" class="hidden">
+        <div class="summary-grid">
+          <article class="signal-card">
+            <span class="metric-label">Total Rows</span>
+            <strong id="metric-total">-</strong>
+          </article>
+          <article class="signal-card">
+            <span class="metric-label">Scored Rows</span>
+            <strong id="metric-scored">-</strong>
+          </article>
+          <article class="signal-card">
+            <span class="metric-label">Accuracy</span>
+            <strong id="metric-accuracy">-</strong>
+          </article>
+          <article class="signal-card">
+            <span class="metric-label">Precision</span>
+            <strong id="metric-precision">-</strong>
+          </article>
+          <article class="signal-card">
+            <span class="metric-label">Recall</span>
+            <strong id="metric-recall">-</strong>
+          </article>
+          <article class="signal-card">
+            <span class="metric-label">F1</span>
+            <strong id="metric-f1">-</strong>
+          </article>
+        </div>
+
+        <div class="summary-grid summary-grid-secondary">
+          <article class="signal-card">
+            <span class="metric-label">True Positives</span>
+            <strong id="metric-tp">-</strong>
+          </article>
+          <article class="signal-card">
+            <span class="metric-label">True Negatives</span>
+            <strong id="metric-tn">-</strong>
+          </article>
+          <article class="signal-card">
+            <span class="metric-label">False Positives</span>
+            <strong id="metric-fp">-</strong>
+          </article>
+          <article class="signal-card">
+            <span class="metric-label">False Negatives</span>
+            <strong id="metric-fn">-</strong>
+          </article>
+        </div>
+
+        <div class="two-column-grid">
+          <section class="card inner-card">
+            <div class="panel-subheader">
+              <h3>False Positives</h3>
+              <span class="hint">Examples flagged as phishing but labeled clean</span>
+            </div>
+            <div id="false-positive-list" class="token-list"></div>
+          </section>
+          <section class="card inner-card">
+            <div class="panel-subheader">
+              <h3>False Negatives</h3>
+              <span class="hint">Examples missed by the detector</span>
+            </div>
+            <div id="false-negative-list" class="token-list"></div>
+          </section>
+        </div>
+
+        <div class="panel-footer">
+          <a id="download-report" class="helper-link" href="#" target="_blank" rel="noreferrer">Download scored CSV</a>
+          <span id="evaluation-note" class="hint"></span>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="/static/dataset.js?v=20260407ui1"></script>
+</body>
+</html>

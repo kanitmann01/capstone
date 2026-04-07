@@ -2,131 +2,105 @@
 
 ## Architecture Summary
 
-The scanner uses a compact layered architecture:
+The capstone now uses a dataset-first architecture:
 
-1. HTTP entry via FastAPI.
-2. Request normalization into a shared target representation.
-3. Per-check scanner execution.
-4. Weighted aggregation across successful checks.
-5. Threat-feed metadata returned alongside results.
-6. Optional web UI rendering for human users.
+1. feed collectors pull candidate phishing URLs from public sources.
+2. snapshotters fetch pages immediately and persist HTML/text into SQLite.
+3. extraction modules derive brand, form, host, and phrase signals.
+4. FastText corpus generation serializes those signals into supervised text.
+5. FastText and rules baselines are evaluated on held-out data.
+6. a small FastAPI app exposes scan, dataset, and results pages.
 
-This architecture favors clarity over abstraction depth. The code is organized
-so that each scanner module owns a narrow concern, while `ScanService` provides
-the coordination point for combined scans.
+This architecture keeps the product demo simple while making the data science
+workflow explicit and reproducible.
 
 ## Request Flow
 
-### Combined scan
+### Single scan
 
 1. A client sends `POST /scan/combined` with a URL payload.
-2. `main.py` forwards the work into `scanner/service.py`.
-3. `normalize_input_url()` canonicalizes the raw input.
-4. The service runs the scanner modules in sequence:
-   - heuristics
-   - content
-   - ssl
-   - domain age
-   - threat intelligence
-5. Each module returns structured output including a `status` and `risk_score`.
-6. The service excludes `unknown` modules from the weighted denominator.
-7. The final response includes:
-   - normalized URL
-   - combined risk score
-   - contributing checks
-   - unknown checks
-   - feed freshness metadata
-   - per-check details
+2. `app/service.py` normalizes and snapshots the page.
+3. HTML, text, and brand cues are extracted from the snapshot.
+4. A FastText model scores the page text.
+5. A rules baseline scores the structured evidence.
+6. The response returns the FastText score, supporting evidence, and a brand-
+   impersonation summary.
 
-### Feed lookup and freshness
+### Dataset workflow
 
-Threat-intelligence lookups are routed through `ThreatFeedCache`. The cache
-loads persisted data from disk on startup, can refresh immediately, and can
-also trigger non-blocking background refresh when data is stale.
+1. Feed collectors ingest candidate URLs.
+2. Snapshot scripts save HTML and visible text to SQLite.
+3. Feature extraction modules generate structured rows.
+4. The corpus exporter writes FastText supervised examples.
+5. Training and evaluation scripts compare FastText and rule baselines.
 
 ## Main Components
 
-### API layer
+### App layer
 
-`main.py` defines the FastAPI application, mounts static assets, renders the
-home page, and exposes scan plus feed-refresh endpoints. It also performs an
-initial best-effort feed refresh during application lifespan startup.
+`app/api.py` defines the FastAPI application and exposes the demo pages. It is
+the web entrypoint for the capstone.
 
 ### Service layer
 
-`scanner/service.py` is the orchestration layer. It is responsible for:
+`app/service.py` coordinates scan, dataset, corpus, and training operations.
+It is responsible for:
 
-- normalizing input once
-- invoking scanner modules
-- emitting progress events for evaluation tooling
-- computing the weighted combined score
-- separating contributing and unknown checks
+- normalizing and extracting page snapshots
+- scoring pages with FastText and rules
+- exporting supervised corpora
+- training FastText artifacts
+- returning dataset summaries and model metadata
 
-### Scanner modules
+### Pipeline modules
 
-Each module returns a self-contained dictionary rather than a custom class
-hierarchy. That keeps the response shape easy to inspect and expose directly.
+- `pipeline/collectors/`: feed-specific URL collection
+- `pipeline/snapshots/sqlite_store.py`: snapshot persistence
+- `pipeline/extraction/`: page parsing, host detection, and brand matching
+- `pipeline/modeling/`: FastText corpus generation, training, and inference
+- `pipeline/evaluation/`: rules baseline and comparison helpers
 
-- `scanner/heuristics.py`: structural URL signals
-- `scanner/content.py`: HTML-based page analysis
-- `scanner/ssl_check.py`: certificate and protocol checks
-- `scanner/domain_age.py`: WHOIS-based domain age signals
-- `scanner/threat_intel.py`: feed cache lookups
+### Feed and brand subsystems
 
-### Feed subsystem
-
-`scanner/feed_ingest.py` handles:
-
-- downloading OpenPhish and VT-style snapshots
-- threshold filtering
-- deduplication
-- lookup indexes by URL, host, and IP
-- disk persistence
-- stale-cache refresh behavior
-
-### Settings layer
-
-`scanner/settings.py` centralizes environment-driven configuration, including
-feed behavior, timeouts, and combined-score weights.
+- `scanner/feed_ingest.py` still provides the ingestion cache used by the
+  collection path.
+- `scanner/brand_profiles.py` supplies the initial brand registry.
+- `scanner/dataset_store.py` stores snapshot rows in SQLite.
 
 ## Data Contracts
 
-The design leans on a few stable contracts:
+The capstone leans on a few stable contracts:
 
 - normalized targets are represented by `NormalizedTarget`
-- each scan module returns `status`, signal fields, and `risk_score`
-- combined scans return `details` keyed by module name
-- degraded checks return `status: "unknown"` instead of pretending success
+- snapshots contain HTML/text and brand metadata
+- supervised examples follow `__label__phishing` and `__label__clean`
+- degraded data is surfaced explicitly instead of being hidden
 
-## Why Unknown States Matter
+## Why Snapshotting Matters
 
-The most important architectural choice is that unavailable checks are treated
-as unknown rather than low risk. This avoids a dangerous failure mode where a
-network timeout, certificate issue, or WHOIS failure silently lowers the
-overall score and gives false reassurance.
+Many phishing pages disappear quickly. The architectural choice to snapshot
+pages immediately is what makes the dataset trustworthy enough for a capstone.
 
 ## Performance Characteristics
 
-The implementation is simple and synchronous within the service layer, with
-FastAPI using threadpool execution for blocking scan functions. That approach
-fits the current scale and codebase size, but it implies:
+The implementation is still synchronous inside the extraction and training
+steps, with FastAPI using simple request handling for the demo surface. That
+fits the scale of a capstone and keeps the code easy to explain, but it implies:
 
 - scan latency grows with the slowest external dependency
-- content fetch, SSL handshake, WHOIS lookup, and feed operations all depend on
-  network conditions
-- concurrency is bounded by worker and threadpool resources
+- content fetches depend on network conditions
+- corpus generation and training are best run offline
 
 ## Architectural Strengths
 
-- clear separation between route handling and scan logic
-- explainable per-check results
-- explicit degraded-state handling
-- practical feed caching
-- testable modules with small responsibility boundaries
+- clear dataset-first story
+- explainable per-page evidence
+- explicit brand-impersonation signals
+- a primary FastText model with rules as a baseline
+- a simple demo app instead of a heavy experiment dashboard
 
 ## Architectural Constraints
 
-- sequential check execution for combined scans
-- heavy reliance on external network services
-- heuristic rules rather than learned or adaptive detection
-- no persistence layer beyond feed cache artifacts
+- still dependent on live phishing feeds and snapshot availability
+- FastText training is only as good as the captured labels and text quality
+- some JS-rendered pages remain out of scope without a browser-rendered collector

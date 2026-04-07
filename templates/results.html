@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css?v=20260407ui1">
+</head>
+<body class="page-results">
+  <main class="container">
+    <header class="page-header page-header-wide">
+      <div class="page-header-copy">
+        <p class="eyebrow">Results</p>
+        <h1>Unified model and evaluation snapshot</h1>
+        <p class="hint">This page shows the active FastText model, optional structured ML state, and the latest batch evaluation metrics from the capstone workflow.</p>
+      </div>
+      <div class="page-header-aside">
+        <nav class="topnav" aria-label="Primary">
+          {% for item in nav_items %}
+          <a class="nav-link{% if active_page == item.id %} is-active{% endif %}" href="{{ item.href }}">{{ item.label }}</a>
+          {% endfor %}
+        </nav>
+      </div>
+    </header>
+
+    {% set model = model_overview or {} %}
+    {% set report = latest_evaluation_report or {} %}
+    {% set summary = report.summary or {} %}
+    {% set matrix = report.confusion_matrix or {} %}
+
+    <section class="summary-panel card">
+      <div class="summary-header">
+        <div>
+          <p class="eyebrow">Active Model</p>
+          <h2>FastText provenance</h2>
+        </div>
+      </div>
+      <div class="summary-grid">
+        <article class="signal-card">
+          <span class="metric-label">Model Available</span>
+          <strong>{{ 'Yes' if model.available else 'No' }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Threshold</span>
+          <strong>{{ model.threshold or 0 }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Model Path</span>
+          <strong class="table-url">{{ model.model_path or 'n/a' }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Metadata Path</span>
+          <strong class="table-url">{{ model.metadata_path or 'n/a' }}</strong>
+        </article>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="panel-subheader">
+        <h2>Model Metadata</h2>
+        <span class="hint">Training settings and artifact provenance</span>
+      </div>
+      <div class="token-list">
+        {% if model.metadata %}
+          {% for key, value in model.metadata.items() if key != 'hyperparameters' %}
+          <span class="token">{{ key }}: {{ value }}</span>
+          {% endfor %}
+        {% else %}
+          <span class="token">No model metadata yet</span>
+        {% endif %}
+      </div>
+      {% if model.metadata.hyperparameters %}
+      <div class="panel-subheader" style="margin-top: 14px;">
+        <h3>Hyperparameters</h3>
+      </div>
+      <div class="token-list">
+        {% for key, value in model.metadata.hyperparameters.items() %}
+        <span class="token">{{ key }}: {{ value }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <div class="panel-subheader">
+        <h2>Comparison Story</h2>
+        <span class="hint">How to explain the capstone model to a reviewer</span>
+      </div>
+      <div class="token-list">
+        <span class="token">FastText is the primary text model</span>
+        <span class="token">Rules remain the interpretable baseline</span>
+        <span class="token">Structured ML is optional and secondary</span>
+        <span class="token">Final score blends the available signals</span>
+        <span class="token">Review recall and false negatives first</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="panel-subheader">
+        <h2>Structured ML State</h2>
+        <span class="hint">Legacy numeric model availability and analytics</span>
+      </div>
+      <div class="token-list">
+        {% if model.structured_ml %}
+          {% for key, value in model.structured_ml.items() if key != 'top_features' %}
+          <span class="token">{{ key }}: {{ value }}</span>
+          {% endfor %}
+        {% else %}
+          <span class="token">No structured ML analytics yet</span>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="panel-subheader">
+        <h2>Latest Evaluation</h2>
+        <span class="hint">Metrics from the most recent batch run in the UI</span>
+      </div>
+
+      {% if summary %}
+      <div class="summary-grid">
+        <article class="signal-card">
+          <span class="metric-label">Total Rows</span>
+          <strong>{{ summary.total_rows or 0 }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Scored Rows</span>
+          <strong>{{ summary.scored_rows or 0 }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Accuracy</span>
+          <strong>{{ summary.accuracy }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Precision</span>
+          <strong>{{ summary.precision }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Recall</span>
+          <strong>{{ summary.recall }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">F1</span>
+          <strong>{{ summary.f1 }}</strong>
+        </article>
+      </div>
+
+      <div class="summary-grid summary-grid-secondary">
+        <article class="signal-card">
+          <span class="metric-label">TP</span>
+          <strong>{{ matrix.tp or 0 }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">TN</span>
+          <strong>{{ matrix.tn or 0 }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">FP</span>
+          <strong>{{ matrix.fp or 0 }}</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">FN</span>
+          <strong>{{ matrix.fn or 0 }}</strong>
+        </article>
+      </div>
+
+      <div class="two-column-grid" style="margin-top: 16px;">
+        <section class="card inner-card">
+          <div class="panel-subheader">
+            <h3>False Positives</h3>
+            <span class="hint">Clean rows flagged as phishing</span>
+          </div>
+          <div class="token-list">
+            {% for item in report.false_positives or [] %}
+            <span class="token">{{ item.url }} ({{ item.risk_score }}, {{ item.prediction }})</span>
+            {% else %}
+            <span class="token">No false positives in the latest run</span>
+            {% endfor %}
+          </div>
+        </section>
+        <section class="card inner-card">
+          <div class="panel-subheader">
+            <h3>False Negatives</h3>
+            <span class="hint">Phishing rows missed by the detector</span>
+          </div>
+          <div class="token-list">
+            {% for item in report.false_negatives or [] %}
+            <span class="token">{{ item.url }} ({{ item.risk_score }}, {{ item.prediction }})</span>
+            {% else %}
+            <span class="token">No false negatives in the latest run</span>
+            {% endfor %}
+          </div>
+        </section>
+      </div>
+
+      {% else %}
+      <div class="token-list">
+        <span class="token">Run a batch evaluation in `Dataset & Analysis` to populate this page.</span>
+      </div>
+      {% endif %}
+    </section>
+  </main>
+</body>
+</html>

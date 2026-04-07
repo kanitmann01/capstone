@@ -66,7 +66,7 @@ integration files into tool-specific configuration locations.
 
 This script should not be mistaken for the scanner setup path. Scanner setup is
 much simpler and is documented in `README.md` with `pip install -r requirements.txt`
-and `uvicorn main:app --reload`.
+and `uvicorn app.api:app --reload`.
 
 ## Recommended Documentation Positioning
 

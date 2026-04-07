@@ -31,6 +31,9 @@ SOURCE_FILES = [
     "09-development-testing-and-operations.md",
     "10-agency-agents-subtree.md",
     "11-risks-limitations-and-roadmap.md",
+    "12-ml-lab-and-classifier.md",
+    "13-brand-login-capstone-methodology.md",
+    "../old-data/14-brand-login-eda.md",
 ]
 
 TITLE_COLOR = RGBColor(15, 23, 42)

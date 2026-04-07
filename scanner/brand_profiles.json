@@ -1,0 +1,85 @@
+{
+  "schema_version": "brand_profiles_v1",
+  "brands": [
+    {
+      "name": "Netflix",
+      "aliases": ["netflix"],
+      "official_domains": ["netflix.com", "netflixhelp.com"],
+      "logo_keywords": ["netflix"],
+      "login_phrases": ["sign in", "member sign in", "watch anywhere"],
+      "suspicious_phrases": ["verify your account", "unusual activity", "update your payment"]
+    },
+    {
+      "name": "PayPal",
+      "aliases": ["paypal"],
+      "official_domains": ["paypal.com", "paypalobjects.com"],
+      "logo_keywords": ["paypal"],
+      "login_phrases": ["log in", "sign in", "secure login"],
+      "suspicious_phrases": ["verify your identity", "unusual activity", "limited account"]
+    },
+    {
+      "name": "Microsoft",
+      "aliases": ["microsoft", "office365", "outlook"],
+      "official_domains": ["microsoft.com", "office.com", "live.com", "office365.com", "login.microsoftonline.com", "outlook.com"],
+      "logo_keywords": ["microsoft", "office", "outlook"],
+      "login_phrases": ["sign in", "use your microsoft account", "enter password"],
+      "suspicious_phrases": ["verify your identity", "account locked", "security alert"]
+    },
+    {
+      "name": "Google",
+      "aliases": ["google", "gmail"],
+      "official_domains": ["google.com", "accounts.google.com", "gmail.com"],
+      "logo_keywords": ["google", "gmail"],
+      "login_phrases": ["sign in", "use your google account", "recover account"],
+      "suspicious_phrases": ["unusual activity", "verify your account", "password required"]
+    },
+    {
+      "name": "Apple",
+      "aliases": ["apple", "icloud", "apple id"],
+      "official_domains": ["apple.com", "icloud.com", "appleid.apple.com"],
+      "logo_keywords": ["apple", "icloud"],
+      "login_phrases": ["sign in", "manage your apple id", "two-factor authentication"],
+      "suspicious_phrases": ["verify your account", "security lock", "update billing"]
+    },
+    {
+      "name": "Chase",
+      "aliases": ["chase", "jpmorgan chase"],
+      "official_domains": ["chase.com", "jpmorgan.com"],
+      "logo_keywords": ["chase", "jpmorgan"],
+      "login_phrases": ["sign in", "secure sign in", "online banking"],
+      "suspicious_phrases": ["verify your account", "suspicious activity", "payment update"]
+    },
+    {
+      "name": "Coinbase",
+      "aliases": ["coinbase"],
+      "official_domains": ["coinbase.com"],
+      "logo_keywords": ["coinbase"],
+      "login_phrases": ["sign in", "verify identity", "wallet access"],
+      "suspicious_phrases": ["account restricted", "urgent verification", "security issue"]
+    },
+    {
+      "name": "Amazon",
+      "aliases": ["amazon", "prime"],
+      "official_domains": ["amazon.com", "amazon.co.uk"],
+      "logo_keywords": ["amazon", "prime"],
+      "login_phrases": ["sign in", "your account", "prime video"],
+      "suspicious_phrases": ["verify your account", "payment update", "delivery issue"]
+    },
+    {
+      "name": "Facebook",
+      "aliases": ["facebook", "meta", "instagram"],
+      "official_domains": ["facebook.com", "meta.com", "instagram.com"],
+      "logo_keywords": ["facebook", "meta", "instagram"],
+      "login_phrases": ["log in", "sign up", "password"],
+      "suspicious_phrases": ["unusual activity", "verify your account", "security warning"]
+    },
+    {
+      "name": "Adobe",
+      "aliases": ["adobe", "acrobat", "creative cloud"],
+      "official_domains": ["adobe.com", "adobeid.services.adobe.com"],
+      "logo_keywords": ["adobe", "creative cloud", "acrobat"],
+      "login_phrases": ["sign in", "continue with adobe", "creative cloud"],
+      "suspicious_phrases": ["verify your subscription", "update payment", "account suspended"]
+    }
+  ]
+}

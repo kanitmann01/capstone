@@ -7,43 +7,39 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css?v=20260317mc2">
+  <link rel="stylesheet" href="/static/styles.css?v=20260407ui1">
 </head>
 <body class="page-scan" data-risk-tone="neutral">
   <main class="container">
     <header class="page-header page-scan-hero">
       <div class="page-header-copy">
-        <p class="eyebrow">Realtime Triage</p>
-        <h1>Phishing Scanner</h1>
-        <p class="hint">Check a suspicious link fast, then review the strongest signals before anyone opens it.</p>
-        <p class="hint"><strong>Important:</strong> Treat the result as a confidence aid, not proof that a site is safe.</p>
+        <p class="eyebrow">Scan Demo</p>
+        <h1>Fake Brand Login Detector</h1>
+        <p class="hint">Paste a suspicious link and see the unified verdict, FastText score, rules baseline, and evidence stack in one place.</p>
+        <p class="hint"><strong>Note:</strong> This is a capstone demo, not proof that a site is safe.</p>
         <div class="hero-chip-row" aria-label="Primary scan signals">
-          <span class="hero-chip hero-chip-signal">Link structure</span>
-          <span class="hero-chip">Domain history</span>
-          <span class="hero-chip">Threat feeds</span>
-          <span class="hero-chip">Page content</span>
+          <span class="hero-chip hero-chip-signal">Unified score</span>
+          <span class="hero-chip">FastText</span>
+          <span class="hero-chip">Rules baseline</span>
+          <span class="hero-chip">Brand mismatch</span>
+          <span class="hero-chip">Legacy checks</span>
         </div>
       </div>
       <div class="page-header-aside">
         <nav class="topnav" aria-label="Primary">
           {% for item in nav_items %}
-          <a
-            class="nav-link{% if active_page == item.id %} is-active{% endif %}"
-            href="{{ item.href }}"
-          >
-            {{ item.label }}
-          </a>
+          <a class="nav-link{% if active_page == item.id %} is-active{% endif %}" href="{{ item.href }}">{{ item.label }}</a>
           {% endfor %}
         </nav>
-        <section class="scan-lens" aria-label="Signal stack">
-          <p class="scan-lens-label">Signal stack</p>
+        <section class="scan-lens" aria-label="Evidence summary">
+          <p class="scan-lens-label">What the demo shows</p>
           <div class="scan-lens-grid">
-            <span class="lens-pill">Lexical patterns</span>
-            <span class="lens-pill">SSL posture</span>
-            <span class="lens-pill">WHOIS age</span>
-            <span class="lens-pill">Threat intel</span>
+            <span class="lens-pill">Detected brand</span>
+            <span class="lens-pill">Host provider</span>
+            <span class="lens-pill">Login form</span>
+            <span class="lens-pill">Suspicious phrasing</span>
           </div>
-          <p class="scan-lens-note">When one strong signal says stop, treat the score as confirmation rather than permission.</p>
+          <p class="scan-lens-note">The goal is to explain why a page looks like a fake brand login, not just assign a generic score.</p>
         </section>
       </div>
     </header>
@@ -52,39 +48,38 @@
       <label class="command-input-shell" for="url-input">
         <span class="field-label">Paste a suspicious link</span>
         <input id="url-input" type="text" placeholder="https://example.com/login" required />
-        <span class="command-footnote">We normalize the address, inspect the strongest signals, and call out anything inconclusive.</span>
+        <span class="command-footnote">The detector normalizes the link, checks the page, and explains the strongest signals it found.</span>
       </label>
-      <button type="submit">Scan Link</button>
-      <button id="refresh-feeds" type="button">Refresh Feeds</button>
+      <button type="submit">Run Demo</button>
     </form>
 
     <section class="scan-helper-row" aria-label="Single-scan tips">
-      <span class="quick-intel-pill">Use full URLs when possible</span>
-      <span class="quick-intel-pill">Refresh feeds if results feel stale</span>
-      <a class="helper-link" href="/evaluate">Need to benchmark many URLs instead?</a>
+      <span class="quick-intel-pill">Use the full URL when possible</span>
+      <span class="quick-intel-pill">Review the three score cards first</span>
+      <a class="helper-link" href="/dataset">Need to benchmark many URLs instead?</a>
     </section>
 
-    <section id="quick-intel" class="quick-intel-row" aria-label="Helpful scan prompts">
+    <section class="quick-intel-row" aria-label="Helpful scan prompts">
       <span class="quick-intel-label">Useful when the link includes:</span>
       <span class="quick-intel-pill">Unexpected sign-in request</span>
-      <span class="quick-intel-pill">Invoice or payroll language</span>
       <span class="quick-intel-pill">Urgent payment update</span>
-      <span class="quick-intel-pill">A shortener or lookalike domain</span>
+      <span class="quick-intel-pill">Brand logo but wrong host</span>
+      <span class="quick-intel-pill">A free-hosted login clone</span>
     </section>
 
     <section id="status" class="card muted status-panel" aria-live="polite">
       <div class="status-shell">
-        <p class="eyebrow status-eyebrow">Mission Log</p>
+        <p class="eyebrow status-eyebrow">Demo Log</p>
         <p id="status-message" class="status-message">Ready.</p>
-        <p id="status-detail" class="status-detail">Paste a suspicious link to start triage.</p>
+        <p id="status-detail" class="status-detail">Paste a suspicious link to start the scan demo.</p>
       </div>
     </section>
 
     <section id="summary" class="summary-panel card hidden">
       <div class="summary-header">
         <div>
-          <p class="eyebrow">Combined verdict</p>
-          <h2>Scan Summary</h2>
+          <p class="eyebrow">Scan Result</p>
+          <h2>Unified verdict</h2>
         </div>
         <div id="summary-state" class="summary-state">Awaiting scan</div>
       </div>
@@ -93,7 +88,7 @@
         <article class="risk-hero">
           <div class="risk-meter" aria-hidden="true">
             <div class="risk-meter-core">
-              <span class="metric-label">Risk Score / 100</span>
+              <span class="metric-label">Unified Score / 100</span>
               <span id="summary-risk" class="risk-value">0</span>
             </div>
           </div>
@@ -105,17 +100,23 @@
 
         <div class="signal-grid">
           <article class="signal-card analysis-card">
-            <span class="metric-label">What This Means</span>
-            <p id="summary-guidance" class="signal-copy">
-              Run a scan to get a plain-language assessment.
-            </p>
+            <span class="metric-label">FastText</span>
+            <p id="summary-guidance" class="signal-copy">Run a scan to see the model prediction and probability.</p>
           </article>
 
           <article class="signal-card analysis-card">
-            <span class="metric-label">Recommended Action</span>
-            <p id="summary-action" class="signal-copy">
-              Review the verdict first, then inspect the detailed checks if needed.
-            </p>
+            <span class="metric-label">Rules Baseline</span>
+            <p id="summary-action" class="signal-copy">Review structural evidence and compare it against the model output.</p>
+          </article>
+
+          <article class="signal-card analysis-card">
+            <span class="metric-label">Legacy Checks</span>
+            <p id="summary-legacy" class="signal-copy">Run a scan to see the legacy weighted signal stack.</p>
+          </article>
+
+          <article class="signal-card analysis-card">
+            <span class="metric-label">Structured ML</span>
+            <p id="summary-ml" class="signal-copy">Run a scan to see the optional numeric model.</p>
           </article>
 
           <article class="signal-card">
@@ -129,38 +130,58 @@
           </article>
 
           <article class="signal-card">
-            <span class="metric-label">Feed Stale</span>
-            <div id="summary-stale" class="status-pill">Unknown</div>
+            <span class="metric-label">Final Score</span>
+            <div id="summary-hybrid" class="status-pill">Awaiting scan</div>
           </article>
 
           <article class="signal-card">
-            <span class="metric-label">Refresh In Progress</span>
-            <div id="summary-refreshing" class="status-pill">Unknown</div>
+            <span class="metric-label">Verdict</span>
+            <div id="summary-verdict" class="status-pill">Awaiting scan</div>
           </article>
         </div>
       </div>
 
-      <div class="meta-grid">
-        <article class="meta-card">
-          <span class="metric-label">Feed Refreshed</span>
-          <span id="summary-refresh" class="meta-value"></span>
+      <div class="summary-grid summary-grid-secondary">
+        <article class="signal-card">
+          <span class="metric-label">Detected Brand</span>
+          <strong id="brand-value">-</strong>
         </article>
-        <article class="meta-card">
-          <span class="metric-label">Feed Error</span>
-          <span id="summary-refresh-error" class="meta-value"></span>
+        <article class="signal-card">
+          <span class="metric-label">Host Provider</span>
+          <strong id="host-value">-</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Login Form Evidence</span>
+          <strong id="form-value">-</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Suspicious Phrases</span>
+          <div id="phrases-value" class="token-list"></div>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Brand / Path Clue</span>
+          <strong id="path-value">-</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Feed Freshness</span>
+          <strong id="feed-value">-</strong>
+        </article>
+        <article class="signal-card">
+          <span class="metric-label">Why It Was Flagged</span>
+          <p id="summary-explanation" class="signal-copy">-</p>
         </article>
       </div>
     </section>
 
     <section id="details" class="card hidden">
       <div class="panel-subheader">
-        <h2>Details</h2>
-        <span class="hint">Raw module output for deeper review and troubleshooting</span>
+        <h2>Technical Details</h2>
+        <span class="hint">Raw structured output for deeper review</span>
       </div>
       <pre id="details-json"></pre>
     </section>
   </main>
 
-  <script src="/static/app.js?v=20260317mc2"></script>
+  <script src="/static/app.js?v=20260407ui1"></script>
 </body>
 </html>

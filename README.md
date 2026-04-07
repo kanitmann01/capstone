@@ -1,20 +1,23 @@
-# Phishing Scanner
+# Fake Brand Login Detector
 
-FastAPI web app + API for scanning suspicious links before opening them. It combines multiple signals (heuristics, content, SSL, WHOIS/domain age, threat intel, optional ML) into a **single risk score** and provides a simple **web UI** for non-technical users.
+Dataset-first FastAPI capstone for detecting fake brand login pages before anyone signs in. It combines HTML/text inspection, host clues, brand-mismatch signals, rules baselines, and a FastText primary model into a single explainable verdict.
 
 ## Key features
 
 - **Single-scan web UI** at `/`
-- **API-first** scanning endpoints (combined + individual checks)
-- **Threat-intel feed cache** with manual refresh endpoint
-- **Batch evaluation + ML lab pages** (`/evaluate`, `/ml`) for model experimentation
+- **Dataset & analysis** page at `/dataset`
+- **Results** page at `/results`
+- **API-first** combined scan endpoint with brand evidence
+- **SQLite snapshot store** for HTML, text, labels, and experiment rows
+- **FastText corpus + training scripts** for the primary model path
 - **Fails-safe** behavior: unavailable checks report `status: "unknown"` (not “safe”)
+- **Archive folder** `old-data/` for legacy datasets and generated outputs
 
 ## Tech stack
 
 - **Backend**: FastAPI + Uvicorn
 - **UI**: Jinja2 templates + static assets
-- **ML (optional)**: TensorFlow / scikit-learn (see `requirements.txt`)
+- **ML**: FastText + lightweight evaluation helpers
 
 ## Quickstart
 
@@ -41,7 +44,7 @@ python3 -m venv .venv
 ### Run (dev)
 
 ```bash
-uvicorn main:app --reload
+uvicorn app.api:app --reload
 ```
 
 Open:
@@ -51,7 +54,7 @@ Open:
 ### Run (no reload; recommended for stability)
 
 ```bash
-python -m uvicorn main:app --host 127.0.0.1 --port 8000
+python -m uvicorn app.api:app --host 127.0.0.1 --port 8000
 ```
 
 ## API usage
@@ -64,24 +67,17 @@ curl -X POST "http://127.0.0.1:8000/scan/combined" \
   -d "{\"url\":\"https://example.com/login\"}"
 ```
 
-### Individual checks
+### Dataset and results endpoints
 
-- `POST /scan/heuristics`
-- `POST /scan/content`
-- `POST /scan/ssl`
-- `POST /scan/whois`
-- `POST /scan/threats`
-- `POST /scan/ml`
-
-Request body:
-
-```json
-{ "url": "example.com/login" }
-```
+- `GET /dataset/summary`
+- `GET /dataset/recent`
+- `GET /models/overview`
+- `POST /evaluate`
+- `POST /train/fasttext`
 
 ## Configuration
 
-All configuration is environment-driven (see `scanner/settings.py`).
+All configuration is environment-driven. See `pipeline/shared/config.py` and `scanner/settings.py` for the legacy scanner compatibility layer.
 
 ### Threat intel feeds
 
@@ -125,56 +121,46 @@ Only entries meeting `VT_MIN_SOURCES` are used for **positive** snapshots. Negat
 | `WEIGHT_SSL` | `0.15` | Combined score weight |
 | `WEIGHT_DOMAIN_AGE` | `0.15` | Combined score weight |
 | `WEIGHT_THREAT_INTEL` | `0.20` | Combined score weight |
-| `WEIGHT_ML` | `0.0` | Combined score weight (set > 0 to contribute) |
-| `ML_ENABLED` | `true` | Enables ML endpoints/overview |
-| `ML_MODEL_PATH` | `.cache/ml-artifacts/active_model.keras` | Active model file |
-| `ML_METADATA_PATH` | `.cache/ml-artifacts/active_model.json` | Model metadata |
-| `ML_REGISTRY_PATH` | `.cache/ml-artifacts/model_registry.json` | Registry of trained models |
-| `ML_RUNS_DIR` | `.cache/ml-jobs` | Training output directory |
-| `ML_DEFAULT_MODEL_TYPE` | `tensorflow_dense` | Default training model type |
-| `ML_DEFAULT_TEST_SIZE` | `0.2` | Training default |
-| `ML_DEFAULT_RANDOM_STATE` | `42` | Training default |
-| `ML_DEFAULT_EPOCHS` | `20` | Training default |
-| `ML_DEFAULT_BATCH_SIZE` | `32` | Training default |
-| `ML_DEFAULT_LEARNING_RATE` | `0.001` | Training default |
-| `ML_DEFAULT_VALIDATION_SPLIT` | `0.2` | Training default |
-| `ML_DEFAULT_DROPOUT_RATE` | `0.15` | Training default |
-| `ML_DEFAULT_HIDDEN_UNITS` | `128,64` | Training default |
-| `ML_DEFAULT_EARLY_STOPPING_PATIENCE` | `5` | Training default |
-| `ML_DEFAULT_CLASSIFICATION_THRESHOLD` | `0.5` | Training default |
-| `ML_DEFAULT_DEVICE` | `auto` | Training default |
-| `ML_DEFAULT_ACTIVATE_AFTER_TRAINING` | `true` | Auto-activate newly trained model |
+| `WEIGHT_ML` | `0.10` | Legacy combined score weight |
+| `FASTTEXT_MODEL_PATH` | `.cache/fasttext/brand-login.bin` | Primary model artifact |
+| `FASTTEXT_METADATA_PATH` | `.cache/fasttext/brand-login.json` | Model metadata |
+| `FASTTEXT_CORPUS_PATH` | `data/processed/fasttext_corpus.txt` | Supervised corpus export |
+| `FASTTEXT_THRESHOLD` | `0.5` | Decision threshold |
+| `FASTTEXT_DIM` | `100` | Model embedding dimension |
+| `FASTTEXT_EPOCH` | `25` | Training epochs |
+| `FASTTEXT_LR` | `0.4` | Training learning rate |
+| `FASTTEXT_WORD_NGRAMS` | `2` | Word n-gram size |
+| `FASTTEXT_MIN_COUNT` | `1` | Minimum token count |
+| `FASTTEXT_LOSS` | `softmax` | FastText loss |
+| `BRAND_PROFILES_PATH` | `scanner/brand_profiles.json` | Brand inventory used by content analysis |
+| `CAPSTONE_DATASET_DB` | `.cache/brand-login-dataset.sqlite3` | SQLite snapshot store for captured pages |
 
-## Feed refresh workflow
+## FastText workflow
 
-1. Start the API.
-2. (Optional) refresh feeds on-demand:
+Build the supervised corpus:
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/feeds/refresh"
+python scripts/build_fasttext_corpus.py phishing_features_extracted_6_features.csv
 ```
 
-Feed freshness metadata is included in scan responses (e.g. `last_refresh_utc`, `stale_cache`, `refresh_error`). Refresh is **non-blocking** for scan requests.
-
-## Baseline evaluation (CSV)
-
-Evaluate a labeled CSV against the running API:
+Train the primary model:
 
 ```bash
-python evaluate_baseline.py baseline.csv baseline_scored.csv
+python scripts/train_fasttext_model.py data/processed/fasttext_corpus.txt
 ```
 
-Expected input columns:
-- `url`
-- `is_phishing`
-
-Optional args:
+Run a comparison experiment:
 
 ```bash
-python evaluate_baseline.py baseline.csv baseline_scored.csv \
-  --endpoint http://127.0.0.1:8000/scan/combined \
-  --threshold 50 \
-  --timeout 15
+python scripts/run_experiments.py phishing_features_extracted_6_features.csv .cache/evaluations/phishing_features_extracted_6_features_scored.csv
+```
+
+## Baseline evaluation
+
+Use the new experiment runner for the FastText-first capstone:
+
+```bash
+python scripts/run_experiments.py phishing_features_extracted_6_features.csv .cache/evaluations/phishing_features_extracted_6_features_scored.csv
 ```
 
 ## Tests
@@ -195,9 +181,22 @@ Outputs: `docs/project-documentation.docx`
 
 ## Confidence guidance
 
-- Treat the combined score as **triage**, not a final verdict.
+- Treat the scan result as **triage**, not a final verdict.
 - Investigate results where:
   - `unknown_checks` is non-empty
-  - `feed_freshness.stale_cache` is `true`
-  - `feed_freshness.refresh_error` is non-empty
-- Prioritize manual review when threat-intel reports positive feed matches.
+  - the brand/host story does not line up
+  - the HTML and visible text look inconsistent with the claimed brand
+- Prioritize manual review when the page looks like a login clone.
+
+## Data Science Story
+
+The capstone is designed as a supervised classification project with an explainable hybrid pipeline:
+
+- collect phishing-page snapshots from live feeds before they disappear
+- store HTML, visible text, labels, and brand metadata in SQLite
+- engineer page, host, form, and brand-impersonation features
+- compare heuristic, ML-only, and hybrid baselines
+- evaluate with precision, recall, F1, confusion matrices, and threshold sweeps
+- review false positives and false negatives as part of the final analysis
+
+The strongest story for presentation is not just "the app catches phishing." It is "the model learns which page structures, text patterns, and hosting clues distinguish fake brand login pages from legitimate ones."

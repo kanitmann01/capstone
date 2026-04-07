@@ -4,9 +4,10 @@ from collections.abc import Iterable
 from math import log2
 from typing import Any
 
+from scanner.brand_profiles import all_brand_tokens
 from scanner.normalization import NormalizedTarget
 
-FEATURE_VERSION = "ml_features_v1"
+FEATURE_VERSION = "ml_features_v2"
 BASE_CHECK_NAMES = ("heuristics", "content", "ssl", "domain_age", "threat_intel")
 
 SUSPICIOUS_TOKENS = (
@@ -22,17 +23,7 @@ SUSPICIOUS_TOKENS = (
     "confirm",
 )
 
-BRAND_TOKENS = (
-    "paypal",
-    "apple",
-    "google",
-    "microsoft",
-    "amazon",
-    "facebook",
-    "bank",
-    "outlook",
-    "office365",
-)
+BRAND_TOKENS = all_brand_tokens() + ("bank", "signin", "login", "secure", "wallet", "account")
 
 FEATURE_FIELDS = (
     "url_length",
@@ -53,6 +44,25 @@ FEATURE_FIELDS = (
     "path_entropy",
     "suspicious_token_count",
     "brand_token_count",
+    "page_title_length",
+    "page_heading_count",
+    "form_count",
+    "login_form_present",
+    "password_field_count",
+    "input_field_count",
+    "nav_link_count",
+    "image_count",
+    "external_image_domain_count",
+    "form_action_count",
+    "free_host_flag",
+    "brand_candidate_count",
+    "detected_brand_present",
+    "brand_mismatch_flag",
+    "brand_path_match",
+    "brand_mention_count",
+    "suspicious_phrase_count",
+    "form_action_mismatch",
+    "no_navigation_menu_flag",
     "heuristics_score",
     "content_score",
     "ssl_score",
@@ -154,6 +164,25 @@ def extract_features(
         "path_entropy": _entropy(target.path or ""),
         "suspicious_token_count": float(_token_count(SUSPICIOUS_TOKENS, lowered_url)),
         "brand_token_count": float(_token_count(BRAND_TOKENS, lowered_url)),
+        "page_title_length": float(len(str(content.get("page_title") or ""))),
+        "page_heading_count": float(len(content.get("heading_texts") or [])),
+        "form_count": float(_safe_int(content.get("form_count"))),
+        "login_form_present": float(_bool_flag(content.get("login_form_present"))),
+        "password_field_count": float(_safe_int(content.get("password_field_count"))),
+        "input_field_count": float(_safe_int(content.get("input_field_count"))),
+        "nav_link_count": float(_safe_int(content.get("nav_link_count"))),
+        "image_count": float(_safe_int(content.get("image_count"))),
+        "external_image_domain_count": float(_safe_int(content.get("external_image_domain_count"))),
+        "form_action_count": float(_safe_int(content.get("form_action_count"))),
+        "free_host_flag": float(_bool_flag(content.get("free_host"))),
+        "brand_candidate_count": float(_safe_int(content.get("brand_candidate_count"))),
+        "detected_brand_present": float(_bool_flag(content.get("detected_brand"))),
+        "brand_mismatch_flag": float(_bool_flag(content.get("brand_mismatch"))),
+        "brand_path_match": float(_bool_flag(content.get("brand_path_match"))),
+        "brand_mention_count": float(_safe_int(content.get("brand_mention_count"))),
+        "suspicious_phrase_count": float(len(content.get("suspicious_phrase_hits") or [])),
+        "form_action_mismatch": float(_bool_flag(content.get("form_action_mismatch"))),
+        "no_navigation_menu_flag": float(_bool_flag(content.get("no_navigation_menu"))),
         "heuristics_score": _safe_float((details.get("heuristics") or {}).get("risk_score")),
         "content_score": _safe_float(content.get("risk_score")),
         "ssl_score": _safe_float(ssl.get("risk_score")),

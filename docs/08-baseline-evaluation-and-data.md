@@ -2,8 +2,8 @@
 
 ## Purpose
 
-The baseline evaluation workflow provides a repeatable way to measure scanner
-behavior against labeled data. It is useful for:
+The baseline evaluation workflow provides a repeatable way to measure brand-login
+detection behavior against labeled data. It is useful for:
 
 - capstone reporting
 - threshold tuning
@@ -91,31 +91,40 @@ That makes it a stronger foundation than a minimal one-off CSV loop.
 
 ## Relationship To The ML Workflow
 
-The same labeled-CSV pattern now also supports the ML workbench:
+The same labeled-CSV pattern now also supports the FastText workflow:
 
 - the baseline evaluation page still measures scanner behavior through the
   combined score
-- the ML Lab reuses labeled CSV input to generate feature datasets, train a
-  baseline decision tree, and report train/test metrics
-- the combined scan now exposes an additional `ml` detail block, but the ML
-  signal can remain excluded from the final weighted score until offline
-  validation supports enabling it
+- the corpus builder reuses labeled CSV input to generate FastText training
+  lines from extracted snapshot text
+- the combined scan exposes a `brand_impersonation` summary plus FastText and
+  rules outputs, so the evaluation result can be used for both explanation and
+  modeling analysis
 
 ## Data Artifacts In This Repo
 
-- `baseline.csv`: input dataset
-- `baseline_scored.csv`: enriched output artifact
+- `old-data/baseline.csv`: archived input dataset
+- `old-data/baseline_scored.csv`: archived enriched output artifact
 
-Additional generated artifacts may now appear under cache-managed ML job
-directories, including:
+Additional generated artifacts may now appear under cache-managed FastText and
+evaluation directories, including:
 
-- extracted feature datasets
+- extracted feature corpora
 - trained model artifacts
 - model metadata
 - experiment reports
 
-Because `baseline_scored.csv` is generated output, it should be treated as a
-reporting artifact rather than a hand-maintained source file.
+For the capstone, the most useful evaluation artifacts are the ones that support
+data science discussion:
+
+- precision, recall, F1, and confusion matrix
+- threshold comparisons
+- row-level false positives and false negatives
+- model feature importance
+- error analysis examples grouped by brand and host provider
+
+Because `old-data/baseline_scored.csv` is generated output, it should be treated
+as a reporting artifact rather than a hand-maintained source file.
 
 ## Evaluation Caveats
 
@@ -133,3 +142,4 @@ reporting artifact rather than a hand-maintained source file.
 3. run the evaluator with a fixed threshold
 4. inspect both summary metrics and row-level errors
 5. review mismatches before adjusting scoring or rules
+

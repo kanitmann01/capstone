@@ -11,7 +11,7 @@ pip install -r requirements.txt
 Run the API with:
 
 ```bash
-uvicorn main:app --reload
+uvicorn app.api:app --reload
 ```
 
 Primary local endpoints:
@@ -40,17 +40,16 @@ The scanner uses environment-driven configuration through
 ### Runtime settings
 
 - `REQUEST_TIMEOUT_SECONDS`
-- `ML_ENABLED`
-- `ML_MODEL_PATH`
-- `ML_METADATA_PATH`
-- `ML_RUNS_DIR`
-- `ML_DEFAULT_CRITERION`
-- `ML_DEFAULT_MAX_DEPTH`
-- `ML_DEFAULT_MIN_SAMPLES_SPLIT`
-- `ML_DEFAULT_MIN_SAMPLES_LEAF`
-- `ML_DEFAULT_TEST_SIZE`
-- `ML_DEFAULT_RANDOM_STATE`
-- `ML_DEFAULT_ACTIVATE_AFTER_TRAINING`
+- `FASTTEXT_MODEL_PATH`
+- `FASTTEXT_METADATA_PATH`
+- `FASTTEXT_CORPUS_PATH`
+- `FASTTEXT_THRESHOLD`
+- `FASTTEXT_DIM`
+- `FASTTEXT_EPOCH`
+- `FASTTEXT_LR`
+- `FASTTEXT_WORD_NGRAMS`
+- `FASTTEXT_MIN_COUNT`
+- `FASTTEXT_LOSS`
 
 ### Combined weight settings
 
@@ -84,17 +83,6 @@ pytest
 
 ## Operational Tasks
 
-### Refreshing feeds
-
-Use:
-
-```bash
-curl -X POST "http://localhost:8000/feeds/refresh"
-```
-
-This is useful after changing VT snapshot filenames or when operators want to
-confirm the latest feed state immediately.
-
 ### Running a combined scan
 
 ```bash
@@ -106,25 +94,25 @@ curl -X POST "http://localhost:8000/scan/combined" \
 ### Running baseline evaluation
 
 ```bash
-python evaluate_baseline.py baseline.csv baseline_scored.csv
+python scripts/run_experiments.py phishing_features_extracted_6_features.csv .cache/evaluations/phishing_features_extracted_6_features_scored.csv
 ```
 
-### Generating an ML feature dataset
+### Building a FastText corpus
 
 ```bash
-python scripts/generate_ml_dataset.py baseline.csv .cache\ml-data\baseline_features.csv
+python scripts/build_fasttext_corpus.py phishing_features_extracted_6_features.csv
 ```
 
-### Training the baseline decision tree
+### Training the FastText model
 
 ```bash
-python scripts/train_ml_model.py baseline.csv --output-dir .cache\ml-runs\manual_run
+python scripts/train_fasttext_model.py data/processed/fasttext_corpus.txt
 ```
 
-### Running an ML-only probe
+### Running a single FastText-backed probe
 
 ```bash
-curl -X POST "http://localhost:8000/scan/ml" \
+curl -X POST "http://localhost:8000/scan/combined" \
   -H "Content-Type: application/json" \
   -d "{\"url\":\"https://example.com/login\"}"
 ```
@@ -168,11 +156,10 @@ Check:
 
 Check:
 
-- whether `ML_ENABLED` is on
-- whether the active model artifact exists at `ML_MODEL_PATH`
-- whether the metadata file exists at `ML_METADATA_PATH`
-- whether training dependencies from `requirements.txt` were installed
-- whether the latest ML run completed successfully
+- whether the active FastText model artifact exists at `FASTTEXT_MODEL_PATH`
+- whether the metadata file exists at `FASTTEXT_METADATA_PATH`
+- whether `fasttext-wheel` was installed successfully
+- whether the latest training run completed successfully
 
 ## Maintenance Priorities
 
@@ -188,7 +175,7 @@ This project is maintainable because its behavior is concentrated in a small
 set of source files. A new maintainer should start with:
 
 1. `README.md`
-2. `main.py`
-3. `scanner/service.py`
-4. `scanner/feed_ingest.py`
+2. `app/api.py`
+3. `app/service.py`
+4. `pipeline/`
 5. `tests/`

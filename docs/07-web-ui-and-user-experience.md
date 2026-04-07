@@ -3,21 +3,22 @@
 ## UI Role
 
 The built-in web interface is a lightweight front end for mixed-skill users who
-may not want to interact with the API directly. It now has three focused pages:
+may not want to interact with the API directly. It now has three focused
+pages:
 
-- single scan for one URL
-- baseline evaluation for labeled CSV testing
-- ML Lab for training and inspecting the decision-tree baseline
+- scan demo for one URL
+- dataset and analysis for snapshot review and batch evaluation
+- results and model overview
 
 ## Frontend Files
 
 - `templates/index.html`
-- `templates/evaluation.html`
-- `templates/ml.html`
+- `templates/dataset.html`
+- `templates/results.html`
 - `static/app.js`
-- `static/evaluation.js`
-- `static/ml.js`
 - `static/styles.css`
+Legacy identities still exist as compatibility routes, but they now resolve to
+the new capstone pages rather than separate product surfaces.
 
 ## Interaction Flow
 
@@ -25,10 +26,10 @@ may not want to interact with the API directly. It now has three focused pages:
 2. The UI disables the relevant form while the request or job starts.
 3. The app posts to one of these endpoints:
    - `POST /scan/combined`
-   - `POST /evaluate/jobs`
-   - `POST /ml/jobs`
-4. The response updates the page with either immediate scan results or live
-   polled job progress.
+   - `POST /evaluate`
+   - `POST /train/fasttext`
+4. The response updates the page with either immediate scan results or summary
+   outputs.
 5. Status text communicates success, caution, or failure.
 
 ## UX Priorities
@@ -41,7 +42,8 @@ The design guidance in `CLAUDE.md` and `.impeccable.md` emphasizes:
 - trustworthy, non-alarmist presentation
 
 That matches the current implementation well. The summary panel highlights the
-combined verdict while still preserving raw technical details for advanced users.
+FastText-led verdict while still preserving raw technical details for advanced
+users.
 
 ## State Communication
 
@@ -54,9 +56,10 @@ The UI uses risk tiers:
 It also explicitly surfaces:
 
 - unknown checks
-- stale feed cache
-- refresh activity
-- refresh errors
+- FastText probability
+- rules baseline score
+- hybrid comparison
+- brand explanation
 
 This is one of the strongest aspects of the interface because it prevents the
 user from seeing only a score without its operational context.
@@ -69,26 +72,23 @@ Current strengths:
 - visible status text
 - compact layout with limited cognitive load
 - no deep navigation required
-- live progress for long-running evaluation and ML workflows
-- one dedicated page for model inspection and experiment control
+- dataset and results pages that summarize the current snapshot and model
+  metadata
+- compatibility aliases keep old `/evaluate` and `/ml` links functional during
+  migration
 
 Current gaps:
 
 - raw JSON in the single-scan details panel is readable but not beginner-friendly
-- the ML Lab focuses on summary metrics rather than deep per-row drilldowns
-- live progress uses polling rather than push streaming, so updates are near
-  real time rather than instant
+- the secondary pages intentionally stay summary-first rather than lab-heavy
 
-## ML Lab Notes
+## Results Notes
 
-The ML Lab page adds:
+The results page adds:
 
-- safe hyperparameter controls for the decision-tree baseline
-- a live training-job progress panel
-- active-model analytics from runtime inference
-- chart-based experiment summaries for train/test metrics, probability
-  distribution, and feature importance
-- a single-URL probe flow through `POST /scan/ml`
+- active-model metadata from the FastText detector
+- artifact paths for the latest model
+- a compact view of the model snapshot
 
 ## Why The Current UI Fits The Project
 

@@ -44,6 +44,7 @@ class ScanService:
             progress_callback=progress_callback,
         )
         details["ml"] = ml_result
+        brand_impersonation = self._brand_impersonation_summary(target, details)
 
         score, contributing_checks, unknown_checks = self._weighted_score(details)
         return {
@@ -52,6 +53,7 @@ class ScanService:
             "contributing_checks": contributing_checks,
             "unknown_checks": unknown_checks,
             "feed_freshness": self.feed_cache.metadata(),
+            "brand_impersonation": brand_impersonation,
             "details": details,
         }
 
@@ -172,3 +174,27 @@ class ScanService:
         if denominator == 0:
             return 0.0, contributing, unknown
         return numerator / denominator, contributing, unknown
+
+    def _brand_impersonation_summary(
+        self,
+        target,
+        details: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
+        content = details.get("content") or {}
+        candidates = list(content.get("brand_candidates") or [])
+        detected_brand = content.get("detected_brand") or ""
+        host_provider = content.get("host_provider") or ""
+        reasons = list(content.get("impersonation_reasons") or [])
+        return {
+            "detected_brand": detected_brand,
+            "free_host_provider": host_provider,
+            "brand_mismatch": bool(content.get("brand_mismatch")),
+            "brand_path_match": bool(content.get("brand_path_match")),
+            "login_form_present": bool(content.get("login_form_present")),
+            "password_field_count": int(content.get("password_field_count") or 0),
+            "form_action_mismatch": bool(content.get("form_action_mismatch")),
+            "suspicious_phrase_hits": list(content.get("suspicious_phrase_hits") or []),
+            "brand_candidates": candidates[:3],
+            "reasons": reasons[:8],
+            "target_host": target.host,
+        }

@@ -5,7 +5,7 @@ const statusDetailEl = document.getElementById("status-detail");
 const summaryEl = document.getElementById("summary");
 const detailsEl = document.getElementById("details");
 const urlInput = document.getElementById("url-input");
-const scanBtn = form.querySelector('button[type="submit"]');
+const scanBtn = form?.querySelector('button[type="submit"]');
 
 const summaryUrl = document.getElementById("summary-url");
 const summaryRisk = document.getElementById("summary-risk");
@@ -15,44 +15,47 @@ const summaryGuidance = document.getElementById("summary-guidance");
 const summaryAction = document.getElementById("summary-action");
 const summaryContrib = document.getElementById("summary-contrib");
 const summaryUnknown = document.getElementById("summary-unknown");
-const summaryRefresh = document.getElementById("summary-refresh");
-const summaryStale = document.getElementById("summary-stale");
-const summaryRefreshing = document.getElementById("summary-refreshing");
-const summaryRefreshError = document.getElementById("summary-refresh-error");
+const summaryHybrid = document.getElementById("summary-hybrid");
+const summaryVerdict = document.getElementById("summary-verdict");
+const brandValue = document.getElementById("brand-value");
+const hostValue = document.getElementById("host-value");
+const formValue = document.getElementById("form-value");
+const phrasesValue = document.getElementById("phrases-value");
+const pathValue = document.getElementById("path-value");
+const explanationValue = document.getElementById("summary-explanation");
 const detailsJson = document.getElementById("details-json");
-const refreshFeedsBtn = document.getElementById("refresh-feeds");
 const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 const loadingDetailSteps = [
-  "Normalizing the address so small URL tricks do not slip through.",
-  "Checking lexical patterns that often show up in phishing links.",
-  "Reviewing certificate and domain-age signals.",
-  "Comparing the URL against cached threat-intel feeds.",
+  "Normalizing the URL and preparing the page snapshot.",
+  "Reading the visible text, forms, and login structure.",
+  "Comparing the host, brand name, and suspicious phrases.",
+  "Blending FastText, rules, and evidence into the final demo result.",
 ];
 
 let loadingDetailTimer = null;
-let riskValueAnimationFrame = 0;
-let lastStatusSignature = "";
-let refreshInFlight = false;
+let statusSignature = "";
+let scoreAnimationFrame = 0;
 
 function defaultStatusDetail(tone) {
   if (tone === "danger") {
-    return "The last action could not complete cleanly. Review the message above before retrying.";
+    return "The page needs manual review before anyone should trust it.";
   }
   if (tone === "warn") {
-    return "Slow down and verify the destination manually before anyone opens it.";
+    return "The page looks suspicious enough to pause and inspect further.";
   }
   if (tone === "ok") {
-    return "No strong phishing indicators surfaced in this pass, but keep normal verification habits.";
+    return "The page does not show strong impersonation signals in this pass.";
   }
-  return "Paste a suspicious link to start triage.";
+  return "Paste a suspicious link to start the demo.";
 }
 
 function setStatus(message, tone = "muted", detail = defaultStatusDetail(tone)) {
   const signature = `${tone}::${message}::${detail}`;
-  if (lastStatusSignature === signature) {
+  if (signature === statusSignature) {
     return;
   }
-  lastStatusSignature = signature;
+  statusSignature = signature;
   statusMessageEl.textContent = message;
   statusDetailEl.textContent = detail;
   statusEl.classList.remove("muted", "ok", "caution", "warn", "danger", "status-swap");
@@ -75,7 +78,7 @@ function startLoadingDetails() {
   loadingDetailTimer = window.setInterval(() => {
     stepIndex = (stepIndex + 1) % loadingDetailSteps.length;
     statusDetailEl.textContent = loadingDetailSteps[stepIndex];
-  }, 1350);
+  }, 1200);
 }
 
 function stopLoadingDetails() {
@@ -86,12 +89,14 @@ function stopLoadingDetails() {
 }
 
 function setScanLoading(isLoading) {
+  if (!form || !scanBtn || !urlInput) {
+    return;
+  }
   form.classList.toggle("is-scanning", isLoading);
   scanBtn.disabled = isLoading;
   scanBtn.setAttribute("aria-busy", String(isLoading));
-  scanBtn.textContent = isLoading ? "Scanning link..." : "Scan Link";
+  scanBtn.textContent = isLoading ? "Running Demo..." : "Run Demo";
   urlInput.readOnly = isLoading;
-  refreshFeedsBtn.disabled = isLoading || refreshInFlight;
   statusEl.classList.toggle("status-loading", isLoading);
   if (isLoading) {
     startLoadingDetails();
@@ -104,106 +109,8 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getRiskLevel(score) {
-  if (score >= 75) {
-    return {
-      tone: "danger",
-      label: "High risk",
-      band: "75-100: strong phishing indicators",
-      guidance: "This scan found strong phishing indicators. Do not treat the site as safe.",
-      action: "Avoid signing in, opening attachments, or entering payment details until the destination is verified by another trusted source.",
-      status: "High risk result. Do not trust this site until it is verified.",
-    };
-  }
-
-  if (score >= 50) {
-    return {
-      tone: "warn",
-      label: "Suspicious",
-      band: "50-74: suspicious enough to block trust",
-      guidance: "The site looks suspicious enough to require manual verification before you use it.",
-      action: "Pause and verify the domain manually. Do not enter credentials or personal information yet.",
-      status: "Suspicious result. Verify the site before interacting with it.",
-    };
-  }
-
-  if (score >= 25) {
-    return {
-      tone: "caution",
-      label: "Use caution",
-      band: "25-49: mixed or early warning signals",
-      guidance: "Some warning signals were detected, but the scan is not conclusive either way.",
-      action: "Proceed carefully only if you expected this site and can confirm the domain independently.",
-      status: "Caution advised. Review the signals before trusting this site.",
-    };
-  }
-
-  return {
-    tone: "ok",
-    label: "Low apparent risk",
-    band: "0-24: no strong signals found",
-    guidance: "No strong phishing indicators were found in this scan, but that does not prove the site is safe.",
-    action: "Only continue if the address matches what you expected. Stay cautious with logins, downloads, and payment requests.",
-    status: "Low apparent risk. Continue carefully, not blindly.",
-  };
-}
-
-function applyRiskTone(level) {
-  summaryEl.dataset.tone = level.tone;
-  detailsEl.dataset.tone = level.tone;
-  document.body.dataset.riskTone = level.tone;
-}
-
-function animateRiskValue(targetScore) {
-  window.cancelAnimationFrame(riskValueAnimationFrame);
-  const currentValue = Number(summaryRisk.dataset.value || 0);
-  const destination = Math.max(0, Math.min(100, Number(targetScore) || 0));
-  if (prefersReducedMotion) {
-    summaryRisk.textContent = `${Math.round(destination)}`;
-    summaryRisk.dataset.value = `${destination}`;
-    return;
-  }
-  const start = performance.now();
-  const duration = 760;
-
-  function tick(now) {
-    const progress = Math.min((now - start) / duration, 1);
-    const eased = 1 - Math.pow(1 - progress, 4);
-    const nextValue = currentValue + (destination - currentValue) * eased;
-    summaryRisk.textContent = `${Math.round(nextValue)}`;
-    summaryRisk.dataset.value = `${nextValue}`;
-    if (progress < 1) {
-      riskValueAnimationFrame = window.requestAnimationFrame(tick);
-    }
-  }
-
-  riskValueAnimationFrame = window.requestAnimationFrame(tick);
-}
-
-function replayEntrance(element) {
-  element.classList.remove("panel-enter");
-  void element.offsetWidth;
-  element.classList.add("panel-enter");
-}
-
-function applyRiskMeter(score) {
-  const boundedScore = Math.max(0, Math.min(100, Number(score) || 0));
-  summaryEl.style.setProperty("--risk-angle", `${boundedScore * 3.6}deg`);
-  summaryEl.style.setProperty("--risk-score", boundedScore.toFixed(1));
-}
-
-function buildCautionNote(result) {
-  const notes = [];
-  if ((result.unknown_checks || []).length > 0) {
-    notes.push("Some checks could not finish.");
-  }
-  if (result.feed_freshness?.stale_cache) {
-    notes.push("Threat-intel data is using stale cache.");
-  }
-  return notes.join(" ");
-}
-
 function renderTokenList(element, values, emptyLabel, tone = "neutral") {
+  if (!element) return;
   element.textContent = "";
   const entries = Array.isArray(values) && values.length > 0 ? values : [emptyLabel];
   entries.forEach((value) => {
@@ -214,10 +121,140 @@ function renderTokenList(element, values, emptyLabel, tone = "neutral") {
   });
 }
 
-function setBooleanPill(element, value, trueLabel, falseLabel, trueTone, falseTone) {
-  const isTrue = Boolean(value);
-  element.textContent = isTrue ? trueLabel : falseLabel;
-  element.className = `status-pill ${isTrue ? trueTone : falseTone}`;
+function setStatusPill(element, value, yesLabel, noLabel, yesTone, noTone) {
+  if (!element) return;
+  const isYes = Boolean(value);
+  element.textContent = isYes ? yesLabel : noLabel;
+  element.className = `status-pill ${isYes ? yesTone : noTone}`;
+}
+
+function scoreTone(score) {
+  if (score >= 75) return { tone: "danger", label: "High risk", band: "75-100: strong phishing indicators" };
+  if (score >= 50) return { tone: "warn", label: "Suspicious", band: "50-74: suspicious enough to review" };
+  if (score >= 25) return { tone: "caution", label: "Use caution", band: "25-49: mixed signals" };
+  return { tone: "ok", label: "Low apparent risk", band: "0-24: no strong indicators" };
+}
+
+function animateScore(targetScore) {
+  if (!summaryRisk) return;
+  window.cancelAnimationFrame(scoreAnimationFrame);
+  const startValue = Number(summaryRisk.dataset.value || 0);
+  const endValue = Math.max(0, Math.min(100, Number(targetScore) || 0));
+  if (prefersReducedMotion) {
+    summaryRisk.textContent = `${Math.round(endValue)}`;
+    summaryRisk.dataset.value = `${endValue}`;
+    return;
+  }
+  const start = performance.now();
+  const duration = 650;
+
+  function tick(now) {
+    const progress = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 4);
+    const nextValue = startValue + (endValue - startValue) * eased;
+    summaryRisk.textContent = `${Math.round(nextValue)}`;
+    summaryRisk.dataset.value = `${nextValue}`;
+    if (progress < 1) {
+      scoreAnimationFrame = window.requestAnimationFrame(tick);
+    }
+  }
+
+  scoreAnimationFrame = window.requestAnimationFrame(tick);
+}
+
+function explanationFromResult(result) {
+  const notes = [];
+  const brandSummary = result.brand_impersonation || {};
+  if (brandSummary.detected_brand && brandSummary.brand_mismatch) {
+    notes.push(`Looks like a ${brandSummary.detected_brand} login clone.`);
+  }
+  if (brandSummary.free_host_provider) {
+    notes.push(`Hosted on ${brandSummary.free_host_provider}-style free infrastructure.`);
+  }
+  if ((brandSummary.suspicious_phrase_hits || []).length > 0) {
+    notes.push("Uses common phishing language.");
+  }
+  if (brandSummary.login_form_present) {
+    notes.push("Contains a login form with password input.");
+  }
+  if (result.override_applied && result.override_reason) {
+    notes.push(`Final decision overridden because of ${result.override_reason}.`);
+  }
+  return notes.join(" ");
+}
+
+function scoreText(block) {
+  if (!block) return { score: 0, label: "n/a" };
+  const rawScore = block.score ?? block.risk_score;
+  const fallbackScore = Number.isFinite(Number(block.probability)) ? Number(block.probability) * 100 : 0;
+  const score = Number.isFinite(Number(rawScore)) ? Number(rawScore) : fallbackScore;
+  const label = block.label || block.prediction || "unknown";
+  return { score, label };
+}
+
+function renderResult(result) {
+  const fasttext = result.fasttext || {};
+  const rules = result.rules || {};
+  const hybridScore = Number(result.hybrid_score ?? 0);
+  const fasttextScore = scoreText(fasttext).score || Number(result.risk_score || 0);
+  const fasttextLabel = scoreText(fasttext).label;
+  const rulesScore = Number(rules.risk_score ?? 0);
+  const rulesLabel = rules.prediction || "unknown";
+  const finalScore = Number(result.risk_score ?? hybridScore ?? rulesScore ?? 0);
+  const tone = scoreTone(finalScore);
+  const explanation = explanationFromResult(result);
+  const brandSummary = result.brand_impersonation || {};
+  const finalVerdict = result.prediction || fasttextLabel || "unknown";
+
+  summaryEl.classList.remove("hidden");
+  detailsEl.classList.remove("hidden");
+
+  summaryUrl.textContent = result.url || "-";
+  summaryRisk.textContent = `${Math.round(fasttextScore)}`;
+  summaryRisk.dataset.value = `${fasttextScore}`;
+  summaryBand.textContent = tone.band;
+  summaryState.textContent = tone.label;
+  summaryState.className = `summary-state ${tone.tone}`;
+  summaryGuidance.textContent = result.override_applied
+    ? `FastText predicts ${fasttextLabel} with a score of ${Math.round(fasttextScore)}, but the final verdict is overridden to clean because the site matches an official brand domain.`
+    : `FastText predicts ${fasttextLabel} with a score of ${Math.round(fasttextScore)}.`;
+  summaryAction.textContent = result.override_applied
+    ? `Official domain override applied: ${result.override_reason}.`
+    : (rulesScore > 0
+      ? `Rules baseline score: ${Math.round(rulesScore)} (${rulesLabel}).`
+      : "Rules baseline did not surface strong evidence in this pass.");
+  summaryHybrid.textContent = `Hybrid score: ${Math.round(result.override_applied ? 0 : hybridScore)}`;
+  summaryHybrid.className = `status-pill ${tone.tone}`;
+  summaryVerdict.textContent = finalVerdict;
+  summaryVerdict.className = `status-pill ${tone.tone}`;
+
+  brandValue.textContent = brandSummary.detected_brand || "No brand identified";
+  hostValue.textContent = brandSummary.free_host_provider
+    ? `${brandSummary.free_host_provider} host`
+    : (result.details?.host || "Unknown host");
+  formValue.textContent = brandSummary.login_form_present
+    ? `${brandSummary.password_field_count || 0} password field(s)`
+    : "No login form detected";
+  pathValue.textContent = brandSummary.brand_path_match
+    ? "Brand token appears in the path"
+    : "No obvious brand/path match";
+  explanationValue.textContent = explanation || "No strong narrative evidence was extracted.";
+  renderTokenList(
+    phrasesValue,
+    brandSummary.suspicious_phrase_hits || result.details?.suspicious_phrase_hits,
+    "No suspicious phrases found",
+    "warn",
+  );
+  renderTokenList(summaryContrib, result.contributing_checks, "No dominant signals", "neutral");
+  renderTokenList(summaryUnknown, result.unknown_checks, "All checks returned", "warn");
+
+  animateScore(fasttextScore);
+  setStatus(
+    `${tone.label}. ${result.override_applied ? "Official domain match overrode the model score." : ""} ${explanation || "Review the evidence cards for details."}`.trim(),
+    tone.tone,
+    explanation || (result.override_applied ? "Official brand domain match." : tone.band),
+  );
+  detailsJson.textContent = JSON.stringify(result, null, 2);
 }
 
 async function scanUrl(url) {
@@ -233,91 +270,33 @@ async function scanUrl(url) {
   return payload;
 }
 
-function renderResult(result) {
-  const score = Number(result.risk_score || 0);
-  const level = getRiskLevel(score);
-  const cautionNote = buildCautionNote(result);
-
-  summaryEl.classList.remove("hidden");
-  detailsEl.classList.remove("hidden");
-  replayEntrance(summaryEl);
-  replayEntrance(detailsEl);
-  applyRiskTone(level);
-  applyRiskMeter(score);
-
-  summaryUrl.textContent = result.url || "-";
-  animateRiskValue(score);
-  summaryRisk.className = `risk-value ${level.tone}`;
-  summaryBand.textContent = level.band;
-  summaryState.textContent = level.label;
-  summaryState.className = `summary-state ${level.tone}`;
-  summaryGuidance.textContent = cautionNote ? `${level.guidance} ${cautionNote}` : level.guidance;
-  summaryAction.textContent = level.action;
-  renderTokenList(summaryContrib, result.contributing_checks, "No dominant signals", "neutral");
-  renderTokenList(summaryUnknown, result.unknown_checks, "All checks returned", "warn");
-  summaryRefresh.textContent = result.feed_freshness?.last_refresh_utc || "Unknown";
-  setBooleanPill(summaryStale, result.feed_freshness?.stale_cache, "Stale cache", "Current cache", "warn", "ok");
-  setBooleanPill(summaryRefreshing, result.feed_freshness?.refresh_in_progress, "Refreshing now", "Idle", "muted", "ok");
-  summaryRefreshError.textContent = result.feed_freshness?.refresh_error || "None";
-
-  detailsJson.textContent = JSON.stringify(result.details, null, 2);
-  if (cautionNote) {
-    setStatus(
-      `${level.status} ${cautionNote}`,
-      "warn",
-      "At least one part of the scan needs manual follow-up before anyone should trust the destination.",
-    );
-    return;
-  }
-  setStatus(level.status, level.tone, level.action);
+if (form) {
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const url = urlInput.value.trim();
+    if (!url) {
+      setStatus("Please provide a URL.", "warn", "Paste a full URL or a bare domain.");
+      return;
+    }
+    setScanLoading(true);
+    setStatus("Running the scan demo...", "muted", loadingDetailSteps[0]);
+    const scanStart = performance.now();
+    try {
+      const result = await scanUrl(url);
+      renderResult(result);
+    } catch (error) {
+      setStatus(
+        error.message || "Scan failed.",
+        "danger",
+        "No trustworthy result was produced. Check connectivity and try again.",
+      );
+    } finally {
+      const elapsed = performance.now() - scanStart;
+      const minVisibleLoadingMs = 500;
+      if (elapsed < minVisibleLoadingMs) {
+        await sleep(minVisibleLoadingMs - elapsed);
+      }
+      setScanLoading(false);
+    }
+  });
 }
-
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const url = urlInput.value.trim();
-  if (!url) {
-    setStatus("Please provide a URL.", "warn", "Try a full link or a bare domain. The scanner will normalize missing protocol when it can.");
-    return;
-  }
-  setScanLoading(true);
-  setStatus("Scanning URL for risk signals...", "muted", loadingDetailSteps[0]);
-  const scanStart = performance.now();
-  try {
-    const result = await scanUrl(url);
-    renderResult(result);
-  } catch (error) {
-    setStatus(error.message || "Scan failed.", "danger", "No trustworthy result was produced. Check connectivity, refresh feeds if needed, and try again.");
-  } finally {
-    const elapsed = performance.now() - scanStart;
-    const minVisibleLoadingMs = 550;
-    if (elapsed < minVisibleLoadingMs) {
-      await sleep(minVisibleLoadingMs - elapsed);
-    }
-    setScanLoading(false);
-  }
-});
-
-refreshFeedsBtn.addEventListener("click", async () => {
-  if (refreshInFlight) return;
-  refreshInFlight = true;
-  refreshFeedsBtn.disabled = true;
-  refreshFeedsBtn.setAttribute("aria-busy", "true");
-  refreshFeedsBtn.textContent = "Refreshing feeds...";
-  setStatus("Refreshing feeds...", "muted", "Pulling the latest threat-intel snapshots so new scans use fresher evidence.");
-  try {
-    const response = await fetch("/feeds/refresh", { method: "POST" });
-    const payload = await response.json();
-    if (!response.ok) {
-      throw new Error(payload.detail || "Feed refresh failed.");
-    }
-    const when = payload.feed_freshness?.last_refresh_utc || "Unknown";
-    setStatus(`Feeds refreshed at ${when}.`, "ok", "Fresh intelligence is now ready for the next suspicious link.");
-  } catch (error) {
-    setStatus(error.message || "Feed refresh failed.", "danger", "The scanner can still run, but threat-intel context may remain older than expected.");
-  } finally {
-    refreshInFlight = false;
-    refreshFeedsBtn.disabled = false;
-    refreshFeedsBtn.setAttribute("aria-busy", "false");
-    refreshFeedsBtn.textContent = "Refresh Feeds";
-  }
-});

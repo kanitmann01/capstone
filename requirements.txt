@@ -9,6 +9,7 @@ jinja2
 pytest
 httpx
 joblib
+fasttext-wheel
 numpy
 pandas
 scikit-learn

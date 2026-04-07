@@ -1,15 +1,63 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+import re
+from typing import Any
+from urllib.parse import urlparse
+
 import requests
 from bs4 import BeautifulSoup
+
+from scanner.brand_profiles import BrandProfile
+from scanner.brand_profiles import guess_host_provider
+from scanner.brand_profiles import host_matches_brand
+from scanner.brand_profiles import load_brand_profiles
+from scanner.brand_profiles import normalize_brand_token
 from scanner.normalization import NormalizedTarget
 from scanner.settings import ScannerSettings
+
+
+FREE_HOST_SUFFIXES = (".vercel.app", ".github.io", ".netlify.app", ".glitch.me", ".onrender.com", ".pages.dev", ".web.app")
+GENERIC_SUSPICIOUS_PHRASES = (
+    "verify account",
+    "verify your account",
+    "unusual activity",
+    "security alert",
+    "confirm your identity",
+    "update payment",
+    "password required",
+    "account locked",
+    "urgent action required",
+    "secure your account",
+)
+
+
+@dataclass(frozen=True)
+class BrandCandidate:
+    brand: str
+    score: int
+    matched_fields: tuple[str, ...]
+    matched_phrases: tuple[str, ...]
+    official_domain_match: bool
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "brand": self.brand,
+            "score": self.score,
+            "matched_fields": list(self.matched_fields),
+            "matched_phrases": list(self.matched_phrases),
+            "official_domain_match": self.official_domain_match,
+        }
+
 
 class ContentScanner:
     def __init__(self, target: NormalizedTarget, settings: ScannerSettings):
         self.target = target
         self.settings = settings
         self.html_content = ""
-        self.soup = None
+        self.soup: BeautifulSoup | None = None
         self.last_error = ""
+        self.brand_profiles = load_brand_profiles()
 
     def fetch_content(self) -> bool:
         """Fetch the HTML content of the page."""
@@ -20,7 +68,7 @@ class ContentScanner:
             )
             if response.status_code == 200:
                 self.html_content = response.text
-                self.soup = BeautifulSoup(self.html_content, 'html.parser')
+                self.soup = BeautifulSoup(self.html_content, "html.parser")
                 return True
             self.last_error = f"status_code={response.status_code}"
         except Exception as exc:
@@ -28,75 +76,395 @@ class ContentScanner:
             return False
         return False
 
-    def check_password_field(self) -> bool:
-        """Check if there is a password input field on a non-HTTPS page."""
-        if not self.soup:
-            return False
-            
-        password_inputs = self.soup.find_all('input', {'type': 'password'})
-        if password_inputs and self.target.scheme != 'https':
-            return True
-        return False
-
-    def check_suspicious_keywords(self) -> bool:
-        """Check for suspicious keywords in the page text."""
-        if not self.soup:
-            return False
-            
-        text = self.soup.get_text().lower()
-        keywords = ["verify account", "urgent action required", "security alert", "confirm your identity", "update payment"]
-        
-        for keyword in keywords:
-            if keyword in text:
-                return True
-        return False
-
-    def check_hidden_elements(self) -> bool:
-        """Check for hidden iframes or elements (basic check)."""
-        if not self.soup:
-            return False
-            
-        # Check for iframes with 0 size or hidden style
-        iframes = self.soup.find_all('iframe')
-        for iframe in iframes:
-            width = iframe.get('width', '100')
-            height = iframe.get('height', '100')
-            style = iframe.get('style', '')
-            
-            if width == '0' or height == '0' or 'display: none' in style or 'visibility: hidden' in style:
-                return True
-                
-        return False
-
     def run_checks(self) -> dict:
         fetched = self.fetch_content()
-        
         if not fetched:
             return {
                 "status": "unknown",
                 "unknown_reason": "content_unavailable",
                 "error": self.last_error,
                 "content_fetched": False,
-                "password_on_http": False,
+                "page_title": "",
+                "visible_text_length": 0,
+                "login_form_present": False,
+                "form_count": 0,
+                "password_field_count": 0,
+                "input_field_count": 0,
+                "nav_link_count": 0,
+                "image_count": 0,
+                "image_domains": [],
+                "free_host": False,
+                "host_provider": "",
+                "brand_candidate_count": 0,
+                "brand_mismatch": False,
+                "brand_path_match": False,
                 "suspicious_keywords": False,
                 "hidden_elements": False,
+                "password_on_http": False,
                 "risk_score": 0,
+                "impersonation_reasons": [],
+                "brand_candidates": [],
             }
 
-        password_http = self.check_password_field()
-        keywords = self.check_suspicious_keywords()
-        hidden = self.check_hidden_elements()
-        
-        score = 0
-        if password_http: score += 80 # Very high risk
-        if keywords: score += 30
-        if hidden: score += 20
-        
+        assert self.soup is not None
+        page_title = self._page_title()
+        visible_text = self._visible_text()
+        heading_texts = self._heading_texts()
+        forms = self.soup.find_all("form")
+        form_stats = self._form_stats(forms)
+        image_domains = self._image_domains()
+        form_action_domains = self._form_action_domains(forms)
+        nav_link_count = self._nav_link_count()
+        hidden = self._check_hidden_elements()
+        brand_candidates = self._brand_candidates(
+            page_title=page_title,
+            visible_text=visible_text,
+            heading_texts=heading_texts,
+            image_domains=image_domains,
+            form_action_domains=form_action_domains,
+        )
+        detected_brand = brand_candidates[0].brand if brand_candidates else ""
+        detected_profile = self._profile_by_name(detected_brand)
+        brand_mismatch = bool(
+            detected_brand
+            and detected_profile
+            and not host_matches_brand(self.target.host, detected_profile)
+        )
+        brand_path_match = self._brand_path_match()
+        suspicious_hits = self._suspicious_phrase_hits(page_title=page_title, visible_text=visible_text)
+        host_provider = guess_host_provider(self.target.host) or ""
+        free_host = bool(host_provider)
+        login_form_present = form_stats["password_field_count"] > 0 or form_stats["form_count"] > 0
+        form_action_mismatch = bool(form_action_domains and any(
+            self._domain_mismatch(action_domain, detected_profile) for action_domain in form_action_domains
+        ))
+        no_navigation_menu = nav_link_count == 0 and login_form_present
+        password_on_http = form_stats["password_field_count"] > 0 and self.target.scheme != "https"
+        content_keyword_flag = bool(suspicious_hits)
+        hidden_elements = hidden
+        risk_score, reasons = self._impersonation_score(
+            login_form_present=login_form_present,
+            password_field_count=form_stats["password_field_count"],
+            input_field_count=form_stats["input_field_count"],
+            free_host=free_host,
+            brand_mismatch=brand_mismatch,
+            brand_path_match=brand_path_match,
+            suspicious_hits=suspicious_hits,
+            form_action_mismatch=form_action_mismatch,
+            no_navigation_menu=no_navigation_menu,
+            hidden_elements=hidden_elements,
+            password_on_http=password_on_http,
+            brand_candidates=brand_candidates,
+        )
+
         return {
             "status": "ok",
             "content_fetched": True,
-            "password_on_http": password_http,
-            "suspicious_keywords": keywords,
-            "hidden_elements": hidden,
-            "risk_score": min(score, 100),
+            "page_title": page_title,
+            "heading_texts": heading_texts,
+            "visible_text": visible_text[:2000],
+            "visible_text_length": len(visible_text),
+            "form_count": form_stats["form_count"],
+            "login_form_present": login_form_present,
+            "password_field_count": form_stats["password_field_count"],
+            "input_field_count": form_stats["input_field_count"],
+            "nav_link_count": nav_link_count,
+            "image_count": len(image_domains),
+            "image_domains": image_domains,
+            "external_image_domain_count": len([domain for domain in image_domains if domain and domain != self.target.host]),
+            "form_action_count": len(form_action_domains),
+            "form_action_domains": form_action_domains,
+            "form_action_mismatch": form_action_mismatch,
+            "free_host": free_host,
+            "host_provider": host_provider,
+            "brand_candidate_count": len(brand_candidates),
+            "detected_brand": detected_brand,
+            "brand_candidates": [candidate.as_dict() for candidate in brand_candidates],
+            "brand_mismatch": brand_mismatch,
+            "brand_path_match": brand_path_match,
+            "brand_mention_count": len(brand_candidates),
+            "suspicious_phrase_hits": suspicious_hits,
+            "suspicious_keywords": content_keyword_flag,
+            "hidden_elements": hidden_elements,
+            "password_on_http": password_on_http,
+            "no_navigation_menu": no_navigation_menu,
+            "impersonation_reasons": reasons,
+            "risk_score": risk_score,
         }
+
+    def _page_title(self) -> str:
+        if not self.soup:
+            return ""
+        title_tag = self.soup.find("title")
+        return title_tag.get_text(" ", strip=True) if title_tag else ""
+
+    def _visible_text(self) -> str:
+        if not self.soup:
+            return ""
+        text = self.soup.get_text(" ", strip=True)
+        return re.sub(r"\s+", " ", text).strip()
+
+    def _heading_texts(self) -> list[str]:
+        if not self.soup:
+            return []
+        headings = []
+        for tag_name in ("h1", "h2", "h3"):
+            for tag in self.soup.find_all(tag_name):
+                value = tag.get_text(" ", strip=True)
+                if value:
+                    headings.append(value)
+        return headings[:12]
+
+    def _form_stats(self, forms) -> dict[str, int]:
+        password_count = 0
+        input_count = 0
+        form_count = 0
+        if not self.soup:
+            return {"form_count": 0, "password_field_count": 0, "input_field_count": 0}
+        for form in forms:
+            form_count += 1
+            for element in form.find_all("input"):
+                input_count += 1
+                input_type = str(element.get("type", "")).lower()
+                if input_type == "password":
+                    password_count += 1
+        return {
+            "form_count": form_count,
+            "password_field_count": password_count,
+            "input_field_count": input_count,
+        }
+
+    def _nav_link_count(self) -> int:
+        if not self.soup:
+            return 0
+        nav_links = 0
+        for nav in self.soup.find_all("nav"):
+            nav_links += len(nav.find_all("a"))
+        return nav_links
+
+    def _image_domains(self) -> list[str]:
+        if not self.soup:
+            return []
+        domains: list[str] = []
+        for image in self.soup.find_all("img"):
+            src = str(image.get("src") or "").strip()
+            if not src:
+                continue
+            parsed = urlparse(src)
+            domain = parsed.netloc.lower()
+            if not domain and src.startswith("/"):
+                domain = self.target.host
+            if domain:
+                domains.append(domain)
+        return sorted(set(domains))
+
+    def _form_action_domains(self, forms) -> list[str]:
+        domains: list[str] = []
+        for form in forms:
+            action = str(form.get("action") or "").strip()
+            if not action:
+                continue
+            parsed = urlparse(action)
+            domain = parsed.netloc.lower()
+            if not domain and not action.startswith("javascript:"):
+                domain = self.target.host
+            if domain:
+                domains.append(domain)
+        return sorted(set(domains))
+
+    def _check_hidden_elements(self) -> bool:
+        if not self.soup:
+            return False
+        for iframe in self.soup.find_all("iframe"):
+            width = str(iframe.get("width", "100"))
+            height = str(iframe.get("height", "100"))
+            style = str(iframe.get("style", "")).lower()
+            if width == "0" or height == "0" or "display: none" in style or "visibility: hidden" in style:
+                return True
+        return False
+
+    def _brand_candidates(
+        self,
+        *,
+        page_title: str,
+        visible_text: str,
+        heading_texts: list[str],
+        image_domains: list[str],
+        form_action_domains: list[str],
+    ) -> list[BrandCandidate]:
+        lowered_title = page_title.lower()
+        lowered_text = visible_text.lower()
+        lowered_headings = " ".join(heading_texts).lower()
+        lowered_path = f"{self.target.path} {self.target.query}".lower()
+        image_blob = " ".join(image_domains).lower()
+        action_blob = " ".join(form_action_domains).lower()
+
+        candidates: list[BrandCandidate] = []
+        for profile in self.brand_profiles:
+            matched_fields: list[str] = []
+            matched_phrases: list[str] = []
+            score = 0
+            normalized_name = normalize_brand_token(profile.name)
+            search_tokens = {normalized_name, *(normalize_brand_token(alias) for alias in profile.aliases)}
+            keyword_hits = set()
+
+            for token in sorted(token for token in search_tokens if token):
+                if token in normalize_brand_token(self.target.host):
+                    matched_fields.append("host")
+                    score += 12
+                if token in normalize_brand_token(lowered_path):
+                    matched_fields.append("path")
+                    score += 6
+                if token in normalize_brand_token(lowered_title):
+                    matched_fields.append("title")
+                    score += 8
+                if token in normalize_brand_token(lowered_headings):
+                    matched_fields.append("heading")
+                    score += 8
+                if token in normalize_brand_token(lowered_text):
+                    matched_fields.append("body")
+                    score += 5
+                if token in normalize_brand_token(image_blob):
+                    matched_fields.append("image")
+                    score += 5
+                if token in normalize_brand_token(action_blob):
+                    matched_fields.append("form_action")
+                    score += 5
+                if token:
+                    keyword_hits.add(token)
+
+            for phrase in (*profile.login_phrases, *profile.suspicious_phrases):
+                lowered_phrase = phrase.lower()
+                if lowered_phrase and (
+                    lowered_phrase in lowered_title
+                    or lowered_phrase in lowered_text
+                    or lowered_phrase in lowered_headings
+                    or lowered_phrase in lowered_path
+                ):
+                    matched_phrases.append(phrase)
+                    score += 4 if phrase in profile.login_phrases else 6
+
+            if host_matches_brand(self.target.host, profile):
+                matched_fields.append("official_domain")
+                score += 10
+            if any(keyword and keyword in lowered_path for keyword in profile.normalized_keywords()):
+                matched_fields.append("path_keyword")
+                score += 5
+
+            if score > 0:
+                candidates.append(
+                    BrandCandidate(
+                        brand=profile.name,
+                        score=score,
+                        matched_fields=tuple(sorted(set(matched_fields))),
+                        matched_phrases=tuple(sorted(set(matched_phrases))),
+                        official_domain_match=host_matches_brand(self.target.host, profile),
+                    )
+                )
+
+        candidates.sort(key=lambda candidate: (candidate.score, len(candidate.matched_fields)), reverse=True)
+        return candidates[:5]
+
+    def _profile_by_name(self, name: str) -> BrandProfile | None:
+        for profile in self.brand_profiles:
+            if profile.name == name:
+                return profile
+        return None
+
+    def _brand_path_match(self) -> bool:
+        lowered_path = f"{self.target.path} {self.target.query}".lower()
+        return any(token and token in lowered_path for token in self._brand_tokens())
+
+    def _brand_tokens(self) -> tuple[str, ...]:
+        tokens = []
+        for profile in self.brand_profiles:
+            tokens.extend(profile.normalized_keywords())
+        return tuple(sorted(set(tokens)))
+
+    def _suspicious_phrase_hits(self, *, page_title: str, visible_text: str) -> list[str]:
+        corpus = f"{page_title} {visible_text}".lower()
+        hits: list[str] = []
+        for phrase in GENERIC_SUSPICIOUS_PHRASES:
+            if phrase in corpus:
+                hits.append(phrase)
+        for profile in self.brand_profiles:
+            for phrase in profile.suspicious_phrases:
+                lowered_phrase = phrase.lower()
+                if lowered_phrase in corpus:
+                    hits.append(phrase)
+        return sorted(set(hits))
+
+    def _domain_mismatch(self, domain: str, profile: BrandProfile | None) -> bool:
+        if not profile:
+            return False
+        normalized_domain = str(domain or "").lower()
+        if not normalized_domain:
+            return False
+        if host_matches_brand(normalized_domain, profile):
+            return False
+        return True
+
+    def _impersonation_score(
+        self,
+        *,
+        login_form_present: bool,
+        password_field_count: int,
+        input_field_count: int,
+        free_host: bool,
+        brand_mismatch: bool,
+        brand_path_match: bool,
+        suspicious_hits: list[str],
+        form_action_mismatch: bool,
+        no_navigation_menu: bool,
+        hidden_elements: bool,
+        password_on_http: bool,
+        brand_candidates: list[BrandCandidate],
+    ) -> tuple[int, list[str]]:
+        score = 0
+        reasons: list[str] = []
+
+        if login_form_present:
+            score += 12
+            reasons.append("login form detected")
+        if password_field_count > 0:
+            score += min(25, 10 + password_field_count * 6)
+            reasons.append(f"{password_field_count} password field(s)")
+        if input_field_count >= 3:
+            score += 8
+            reasons.append("multiple input fields")
+        if free_host:
+            score += 18
+            reasons.append(f"free host provider: {guess_host_provider(self.target.host) or 'unknown'}")
+        if brand_mismatch:
+            score += 30
+            reasons.append("brand text does not match host")
+        if brand_path_match:
+            score += 10
+            reasons.append("brand keyword appears in the URL path")
+        if suspicious_hits:
+            score += min(20, 4 * len(suspicious_hits))
+            reasons.append("suspicious login language found")
+        if form_action_mismatch:
+            score += 12
+            reasons.append("form action points away from the brand host")
+        if no_navigation_menu:
+            score += 8
+            reasons.append("page has a login form but no navigation")
+        if hidden_elements:
+            score += 10
+            reasons.append("hidden page elements detected")
+        if password_on_http:
+            score += 20
+            reasons.append("password field appears on a non-HTTPS page")
+        if brand_candidates:
+            score += min(12, brand_candidates[0].score // 2)
+            if brand_candidates[0].matched_fields:
+                reasons.append(f"brand candidate: {brand_candidates[0].brand}")
+
+        if brand_candidates and not brand_candidates[0].official_domain_match:
+            score += 8
+            reasons.append("brand candidate does not match an official domain")
+
+        if score > 100:
+            score = 100
+        return score, list(dict.fromkeys(reasons))

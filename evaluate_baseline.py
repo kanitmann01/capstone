@@ -321,7 +321,10 @@ def evaluate_csv(
                     matched_ground_truth = predicted_is_phishing == actual_is_phishing
                     contributing_checks = list(payload.get("contributing_checks") or [])
                     unknown_checks = list(payload.get("unknown_checks") or [])
-                    details = payload.get("details") or {}
+                    details = dict(payload.get("details") or {})
+                    brand_impersonation = payload.get("brand_impersonation")
+                    if isinstance(brand_impersonation, dict) and brand_impersonation:
+                        details["brand_impersonation"] = brand_impersonation
 
                     row_output.update(
                         {
