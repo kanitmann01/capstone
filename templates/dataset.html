@@ -1,28 +1,11 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ title }}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css?v=20260407ui1">
-</head>
-<body class="page-dataset">
-  <main class="container">
+{% extends "_layout.html" %}
+{% block body_class %}page-dataset{% endblock %}
+{% block content %}
     <header class="page-header page-header-wide">
       <div class="page-header-copy">
         <p class="eyebrow">Dataset & Analysis</p>
         <h1>Snapshot store and evaluation workflow</h1>
         <p class="hint">This page shows the labeled snapshot dataset, recent captures, provenance counts, and the batch evaluation flow used for the capstone review.</p>
-      </div>
-      <div class="page-header-aside">
-        <nav class="topnav" aria-label="Primary">
-          {% for item in nav_items %}
-          <a class="nav-link{% if active_page == item.id %} is-active{% endif %}" href="{{ item.href }}">{{ item.label }}</a>
-          {% endfor %}
-        </nav>
       </div>
     </header>
 
@@ -276,8 +259,7 @@
         </div>
       </section>
     </section>
-  </main>
-
-  <script src="/static/dataset.js?v=20260407ui1"></script>
-</body>
-</html>
+{% endblock %}
+{% block scripts %}
+<script src="/static/dataset.js?v=20260424trustclick1"></script>
+{% endblock %}

@@ -31,6 +31,7 @@ from scanner.dataset_store import BrandLoginDatasetStore  # Project-local: SQLit
 from scanner.dataset_store import SnapshotRecord  # Project-local: immutable snapshot dataclass
 from scanner.domain_age import DomainAgeScanner  # Project-local: WHOIS age checker
 from scanner.feed_ingest import ThreatFeedCache  # Project-local: threat-intel cache
+from scanner.brand_recognition import BrandRecognitionDetector  # Project-local: domain/brand spoofing detector
 from scanner.heuristics import URLHeuristics  # Project-local: URL heuristic scanner
 from scanner.ml_features import extract_features  # Project-local: structured feature engineering
 from scanner.ml_model import MLScanner  # Project-local: structured ML inference
@@ -54,6 +55,7 @@ class AppService:
         self.feed_cache = ThreatFeedCache(self.scanner_settings)
         self.detector = FastTextDetector(self.config.fasttext_model_path, threshold=self.config.fasttext_threshold)
         self.structured_ml = MLScanner(self.scanner_settings)
+        self.brand_recognition = BrandRecognitionDetector()
         self.latest_evaluation_report: dict[str, Any] | None = None
 
     def scan_url(self, raw_url: str, *, persist: bool = True, source: str = "live_scan") -> dict[str, Any]:
@@ -64,8 +66,9 @@ class AppService:
         fasttext_prediction = self.detector.predict_text(serialize_snapshot(snapshot))
         legacy_checks = self._run_legacy_checks(target, snapshot)
         structured_ml = self._run_structured_ml(target, legacy_checks)
-        scores = self._score_components(rules, fasttext_prediction, legacy_checks, structured_ml)
-        verdict = self._build_verdict(scores, rules, fasttext_prediction, structured_ml)
+        brand_recognition = self._run_brand_recognition(raw_url)
+        scores = self._score_components(rules, fasttext_prediction, legacy_checks, structured_ml, brand_recognition)
+        verdict = self._build_verdict(scores, rules, fasttext_prediction, structured_ml, brand_recognition)
         override_brand = self._official_domain_override(snapshot)
         override_applied = False
         override_reason = ""
@@ -95,9 +98,16 @@ class AppService:
             }
 
         fasttext_payload = self._fasttext_payload(fasttext_prediction)
-        checks = self._build_check_map(snapshot, legacy_checks, rules, fasttext_payload, structured_ml)
-        contributing_checks = self._contributing_checks(snapshot, rules, fasttext_payload, legacy_checks, structured_ml)
-        unknown_checks = self._unknown_checks(snapshot, fasttext_payload, legacy_checks, structured_ml)
+        checks = self._build_check_map(snapshot, legacy_checks, rules, fasttext_payload, structured_ml, brand_recognition)
+        contributing_checks = self._contributing_checks(
+            snapshot,
+            rules,
+            fasttext_payload,
+            legacy_checks,
+            structured_ml,
+            brand_recognition,
+        )
+        unknown_checks = self._unknown_checks(snapshot, fasttext_payload, legacy_checks, structured_ml, brand_recognition)
 
         final_score = float(scores["final"])
         result = {
@@ -109,6 +119,7 @@ class AppService:
             "scores": scores,
             "rules": rules,
             "fasttext": fasttext_payload,
+            "brand_recognition": brand_recognition,
             "brand_impersonation": snapshot["brand_impersonation"],
             "details": {
                 **snapshot,
@@ -117,6 +128,7 @@ class AppService:
                 "verdict": verdict,
                 "rules": rules,
                 "fasttext": fasttext_payload,
+                "brand_recognition": brand_recognition,
             },
             "checks": checks,
             "contributing_checks": contributing_checks,
@@ -150,6 +162,7 @@ class AppService:
         prediction: dict[str, Any],
         legacy_checks: dict[str, dict[str, Any]],
         structured_ml: dict[str, Any],
+        brand_recognition: dict[str, Any],
     ) -> list[str]:
         """Identify which checks contributed a positive risk signal."""
         checks: list[str] = []
@@ -167,6 +180,8 @@ class AppService:
             checks.append("fasttext")
         if structured_ml.get("status") == "ok" and float(structured_ml.get("risk_score") or 0) > 0:
             checks.append("structured_ml")
+        if brand_recognition.get("status") == "scam" and float(brand_recognition.get("risk_score") or 0) > 0:
+            checks.append("brand_recognition")
         for name, result in legacy_checks.items():
             if result.get("status", "ok") == "ok" and float(result.get("risk_score") or 0) > 0:
                 checks.append(name)
@@ -178,6 +193,7 @@ class AppService:
         prediction: dict[str, Any],
         legacy_checks: dict[str, dict[str, Any]],
         structured_ml: dict[str, Any],
+        brand_recognition: dict[str, Any],
     ) -> list[str]:
         """Identify which checks are unavailable or failed."""
         unknown: list[str] = []
@@ -187,6 +203,8 @@ class AppService:
             unknown.append("fasttext")
         if structured_ml.get("status") != "ok":
             unknown.append("structured_ml")
+        if brand_recognition.get("status") == "unknown":
+            unknown.append("brand_recognition")
         for name, result in legacy_checks.items():
             if result.get("status", "ok") != "ok":
                 unknown.append(name)
@@ -217,32 +235,57 @@ class AppService:
                 "prediction": "unknown",
             }
 
+    def _run_brand_recognition(self, raw_url: str) -> dict[str, Any]:
+        """Run domain-only brand recognition without network access."""
+        try:
+            return self.brand_recognition.analyze_url(raw_url)
+        except Exception as exc:
+            return {
+                "url_analyzed": raw_url,
+                "parsed_root": "",
+                "status": "unknown",
+                "threat_type": "none",
+                "matched_brand": "",
+                "confidence_score": 0.0,
+                "risk_score": 0.0,
+                "brand_closeness": [],
+                "unknown_reason": str(exc),
+            }
+
     def _score_components(
         self,
         rules: dict[str, Any],
         fasttext_prediction: Any,
         legacy_checks: dict[str, dict[str, Any]],
         structured_ml: dict[str, Any],
+        brand_recognition: dict[str, Any],
     ) -> dict[str, Any]:
         """Compute weighted composite score from all available components."""
         rules_score = float(rules.get("risk_score") or 0)
         fasttext_score = self._safe_prediction_score(fasttext_prediction)
         legacy_score, legacy_contributing, legacy_unknown = self._weighted_legacy_score(legacy_checks)
         structured_score = float(structured_ml.get("risk_score") or 0) if structured_ml.get("status") == "ok" else None
+        brand_score = (
+            float(brand_recognition.get("risk_score") or 0)
+            if brand_recognition.get("status") in {"safe", "scam"}
+            else None
+        )
         component_values = {
             "rules": rules_score,
             "fasttext": fasttext_score,
             "legacy": legacy_score,
             "structured_ml": structured_score,
+            "brand_recognition": brand_score,
         }
         numerator = 0.0
         denominator = 0.0
         available_components: list[str] = []
         weights = {
-            "rules": 0.35,
-            "fasttext": 0.35,
-            "legacy": 0.20,
+            "rules": 0.30,
+            "fasttext": 0.30,
+            "legacy": 0.15,
             "structured_ml": 0.10,
+            "brand_recognition": 0.15,
         }
         for name, score in component_values.items():
             if score is None:
@@ -251,13 +294,15 @@ class AppService:
             weight = weights.get(name, 0.0)
             numerator += float(score) * float(weight)
             denominator += float(weight)
-        final_score = round(numerator / denominator, 2) if denominator else 0.0
+        weighted_score = round(numerator / denominator, 2) if denominator else 0.0
+        final_score = max(weighted_score, float(brand_score or 0.0)) if brand_recognition.get("status") == "scam" else weighted_score
         return {
             "final": final_score,
             "rules": round(rules_score, 2),
             "fasttext": round(float(fasttext_score), 2) if fasttext_score is not None else None,
             "legacy": round(float(legacy_score), 2),
             "structured_ml": round(float(structured_score), 2) if structured_score is not None else None,
+            "brand_recognition": round(float(brand_score), 2) if brand_score is not None else None,
             "available_components": available_components,
             "legacy_contributing_checks": legacy_contributing,
             "legacy_unknown_checks": legacy_unknown,
@@ -269,6 +314,7 @@ class AppService:
         rules: dict[str, Any],
         fasttext_prediction: Any,
         structured_ml: dict[str, Any],
+        brand_recognition: dict[str, Any],
     ) -> dict[str, Any]:
         """Translate composite scores into a final phishing/clean verdict."""
         signals = list(rules.get("reasons") or [])
@@ -276,6 +322,10 @@ class AppService:
             signals.append(f"FastText score {scores['fasttext']:.2f}")
         if structured_ml.get("status") == "ok":
             signals.append(f"Structured ML score {scores['structured_ml']:.2f}")
+        if brand_recognition.get("status") == "scam":
+            threat_type = brand_recognition.get("threat_type") or "brand_spoofing"
+            matched_brand = brand_recognition.get("matched_brand") or "target brand"
+            signals.append(f"Brand recognition flagged {threat_type} against {matched_brand}")
         if scores.get("legacy_contributing_checks"):
             signals.extend(scores["legacy_contributing_checks"])
         label = "phishing" if float(scores["final"]) >= float(self.config.final_score_threshold) else "clean"
@@ -295,12 +345,14 @@ class AppService:
         rules: dict[str, Any],
         fasttext_prediction: dict[str, Any],
         structured_ml: dict[str, Any],
+        brand_recognition: dict[str, Any],
     ) -> dict[str, dict[str, Any]]:
         """Collate every individual scanner result into a unified checks map."""
         checks = dict(legacy_checks)
         checks["rules"] = rules
         checks["fasttext"] = fasttext_prediction
         checks["structured_ml"] = structured_ml
+        checks["brand_recognition"] = brand_recognition
         checks["brand_impersonation"] = snapshot.get("brand_impersonation") or {}
         return checks
 
@@ -325,6 +377,7 @@ class AppService:
                 "rules": result.get("rules"),
                 "scores": result.get("scores"),
                 "brand_impersonation": result.get("brand_impersonation"),
+                "brand_recognition": result.get("brand_recognition"),
                 "checks": result.get("checks"),
                 "feed_freshness": result.get("feed_freshness"),
                 "override_applied": result.get("override_applied"),

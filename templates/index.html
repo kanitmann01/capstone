@@ -1,47 +1,16 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ title }}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css?v=20260407ui1">
-</head>
-<body class="page-scan" data-risk-tone="neutral">
-  <main class="container">
-    <header class="page-header page-scan-hero">
-      <div class="page-header-copy">
-        <p class="eyebrow">Scan Demo</p>
-        <h1>Fake Brand Login Detector</h1>
-        <p class="hint">Paste a suspicious link and see the unified verdict, FastText score, rules baseline, and evidence stack in one place.</p>
-        <p class="hint"><strong>Note:</strong> This is a capstone demo, not proof that a site is safe.</p>
-        <div class="hero-chip-row" aria-label="Primary scan signals">
-          <span class="hero-chip hero-chip-signal">Unified score</span>
-          <span class="hero-chip">FastText</span>
-          <span class="hero-chip">Rules baseline</span>
-          <span class="hero-chip">Brand mismatch</span>
-          <span class="hero-chip">Legacy checks</span>
-        </div>
+{% extends "_layout.html" %}
+{% block body_class %}page-scan{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="https://unpkg.com/vis-network@9.1.9/styles/vis-network.min.css">
+<script defer src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+{% endblock %}
+{% block content %}
+    <header class="target-header">
+      <div>
+        <p class="eyebrow">Scan Result</p>
+        <h1>Target Analysis</h1>
       </div>
-      <div class="page-header-aside">
-        <nav class="topnav" aria-label="Primary">
-          {% for item in nav_items %}
-          <a class="nav-link{% if active_page == item.id %} is-active{% endif %}" href="{{ item.href }}">{{ item.label }}</a>
-          {% endfor %}
-        </nav>
-        <section class="scan-lens" aria-label="Evidence summary">
-          <p class="scan-lens-label">What the demo shows</p>
-          <div class="scan-lens-grid">
-            <span class="lens-pill">Detected brand</span>
-            <span class="lens-pill">Host provider</span>
-            <span class="lens-pill">Login form</span>
-            <span class="lens-pill">Suspicious phrasing</span>
-          </div>
-          <p class="scan-lens-note">The goal is to explain why a page looks like a fake brand login, not just assign a generic score.</p>
-        </section>
-      </div>
+      <p class="target-host" id="target-host">Target: <span class="mono">-</span></p>
     </header>
 
     <form id="scan-form" class="command-bar">
@@ -50,22 +19,8 @@
         <input id="url-input" type="text" placeholder="https://example.com/login" required />
         <span class="command-footnote">The detector normalizes the link, checks the page, and explains the strongest signals it found.</span>
       </label>
-      <button type="submit">Run Demo</button>
+      <button id="scan-submit-btn" type="submit">Run Demo</button>
     </form>
-
-    <section class="scan-helper-row" aria-label="Single-scan tips">
-      <span class="quick-intel-pill">Use the full URL when possible</span>
-      <span class="quick-intel-pill">Review the three score cards first</span>
-      <a class="helper-link" href="/dataset">Need to benchmark many URLs instead?</a>
-    </section>
-
-    <section class="quick-intel-row" aria-label="Helpful scan prompts">
-      <span class="quick-intel-label">Useful when the link includes:</span>
-      <span class="quick-intel-pill">Unexpected sign-in request</span>
-      <span class="quick-intel-pill">Urgent payment update</span>
-      <span class="quick-intel-pill">Brand logo but wrong host</span>
-      <span class="quick-intel-pill">A free-hosted login clone</span>
-    </section>
 
     <section id="status" class="card muted status-panel" aria-live="polite">
       <div class="status-shell">
@@ -75,102 +30,124 @@
       </div>
     </section>
 
-    <section id="summary" class="summary-panel card hidden">
+    <section id="summary" class="summary-panel screenshot-summary hidden">
       <div class="summary-header">
         <div>
           <p class="eyebrow">Scan Result</p>
-          <h2>Unified verdict</h2>
+          <h2>Target Analysis</h2>
         </div>
         <div id="summary-state" class="summary-state">Awaiting scan</div>
       </div>
 
-      <div class="summary-grid">
-        <article class="risk-hero">
+      <div class="summary-grid screenshot-grid">
+        <article class="risk-hero screenshot-risk-card">
           <div class="risk-meter" aria-hidden="true">
             <div class="risk-meter-core">
               <span class="metric-label">Unified Score / 100</span>
               <span id="summary-risk" class="risk-value">0</span>
+              <div id="summary-verdict" class="status-pill">Awaiting scan</div>
             </div>
           </div>
           <div class="risk-hero-copy">
             <span id="summary-band" class="risk-band">No scan yet</span>
-            <span id="summary-url" class="risk-url">-</span>
+            <span id="summary-url" class="risk-url mono">-</span>
           </div>
+          <p id="summary-explanation" class="signal-copy">-</p>
         </article>
 
-        <div class="signal-grid">
-          <article class="signal-card analysis-card">
+        <div class="signal-grid screenshot-metric-grid">
+          <article class="signal-card analysis-card compact-metric">
             <span class="metric-label">FastText</span>
             <p id="summary-guidance" class="signal-copy">Run a scan to see the model prediction and probability.</p>
           </article>
 
-          <article class="signal-card analysis-card">
+          <article class="signal-card analysis-card compact-metric">
             <span class="metric-label">Rules Baseline</span>
             <p id="summary-action" class="signal-copy">Review structural evidence and compare it against the model output.</p>
           </article>
 
-          <article class="signal-card analysis-card">
+          <article class="signal-card analysis-card compact-metric">
             <span class="metric-label">Legacy Checks</span>
             <p id="summary-legacy" class="signal-copy">Run a scan to see the legacy weighted signal stack.</p>
           </article>
 
-          <article class="signal-card analysis-card">
+          <article class="signal-card analysis-card compact-metric">
             <span class="metric-label">Structured ML</span>
             <p id="summary-ml" class="signal-copy">Run a scan to see the optional numeric model.</p>
           </article>
 
-          <article class="signal-card">
+          <article class="signal-card compact-metric">
             <span class="metric-label">Contributing Checks</span>
             <div id="summary-contrib" class="token-list"></div>
           </article>
 
-          <article class="signal-card">
+          <article class="signal-card compact-metric">
             <span class="metric-label">Unknown Checks</span>
             <div id="summary-unknown" class="token-list"></div>
           </article>
 
-          <article class="signal-card">
+          <article class="signal-card compact-metric">
             <span class="metric-label">Final Score</span>
             <div id="summary-hybrid" class="status-pill">Awaiting scan</div>
-          </article>
-
-          <article class="signal-card">
-            <span class="metric-label">Verdict</span>
-            <div id="summary-verdict" class="status-pill">Awaiting scan</div>
           </article>
         </div>
       </div>
 
-      <div class="summary-grid summary-grid-secondary">
-        <article class="signal-card">
-          <span class="metric-label">Detected Brand</span>
-          <strong id="brand-value">-</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">Host Provider</span>
-          <strong id="host-value">-</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">Login Form Evidence</span>
-          <strong id="form-value">-</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">Suspicious Phrases</span>
-          <div id="phrases-value" class="token-list"></div>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">Brand / Path Clue</span>
-          <strong id="path-value">-</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">Feed Freshness</span>
-          <strong id="feed-value">-</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">Why It Was Flagged</span>
-          <p id="summary-explanation" class="signal-copy">-</p>
-        </article>
-      </div>
+      <section class="evidence-panel" aria-labelledby="evidence-title">
+        <div class="panel-subheader">
+          <h3 id="evidence-title">Evidence Details</h3>
+        </div>
+        <div class="evidence-top">
+          <article class="evidence-item">
+            <span class="metric-label">Detected Brand</span>
+            <strong id="brand-value">-</strong>
+          </article>
+          <article class="evidence-item">
+            <span class="metric-label">Host Provider</span>
+            <strong id="host-value">-</strong>
+          </article>
+          <article class="evidence-item">
+            <span class="metric-label">Feed Freshness</span>
+            <strong id="feed-value">-</strong>
+          </article>
+        </div>
+        <div class="evidence-middle">
+          <article class="evidence-code-block">
+            <span class="metric-label">Login Form Evidence</span>
+            <pre id="form-snippet" class="code-block">&lt;form&gt;No HTML captured in this pass.&lt;/form&gt;</pre>
+            <span id="form-value" class="hidden">-</span>
+          </article>
+          <article class="evidence-item">
+            <span class="metric-label">Suspicious Phrases</span>
+            <div id="phrases-value" class="token-list"></div>
+          </article>
+        </div>
+        <div class="evidence-bottom">
+          <article class="evidence-item">
+            <span class="metric-label">Path Clue</span>
+            <strong id="path-value" class="mono">-</strong>
+          </article>
+        </div>
+      </section>
+
+      <section class="brand-closeness-panel" aria-labelledby="brand-closeness-title">
+        <div class="panel-subheader">
+          <div>
+            <p class="eyebrow">Brand Closeness Map</p>
+            <h2 id="brand-closeness-title">Suspicious host vs. real brand domains</h2>
+          </div>
+          <span id="brand-closeness-verdict" class="status-pill">Awaiting scan</span>
+        </div>
+        <p id="brand-closeness-copy" class="hint">Run a scan to see how close the analyzed root domain is to protected brands. Only brands above the <strong id="brand-closeness-threshold-label">70%</strong> similarity threshold are shown on the graph.</p>
+        <div id="brand-closeness-graph" class="brand-closeness-graph" role="img" aria-label="Brand closeness graph"></div>
+        <p id="brand-closeness-empty" class="brand-closeness-empty hidden">No candidate brand is within the similarity threshold for this domain.</p>
+        <div id="brand-closeness-legend" class="brand-closeness-legend hidden" aria-hidden="true">
+          <span class="legend-item"><span class="legend-swatch legend-swatch-root"></span>Analyzed root</span>
+          <span class="legend-item"><span class="legend-swatch legend-swatch-match"></span>Matched brand</span>
+          <span class="legend-item"><span class="legend-swatch legend-swatch-candidate"></span>Candidate brand</span>
+          <span class="legend-item legend-item-note">Edge thickness encodes similarity</span>
+        </div>
+      </section>
     </section>
 
     <section id="details" class="card hidden">
@@ -180,8 +157,7 @@
       </div>
       <pre id="details-json"></pre>
     </section>
-  </main>
-
-  <script src="/static/app.js?v=20260407ui1"></script>
-</body>
-</html>
+{% endblock %}
+{% block scripts %}
+<script src="/static/app.js?v=20260424polish1"></script>
+{% endblock %}

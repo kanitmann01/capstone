@@ -13,6 +13,10 @@ fasttext-wheel
 numpy
 pandas
 scikit-learn
+faiss-cpu
+pybloom_live
+python-Levenshtein
+tldextract
 tensorboard
 tensorflow
 python-docx
