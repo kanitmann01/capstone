@@ -1,11 +1,19 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
-from math import log2
-from typing import Any
+"""
+Feature engineering for structured machine learning.
 
-from scanner.brand_profiles import all_brand_tokens
-from scanner.normalization import NormalizedTarget
+Transforms raw scanner outputs (heuristics, content, SSL, domain age,
+threat intel) into a flat numeric feature vector suitable for
+scikit-learn / TensorFlow models.
+"""
+
+from collections.abc import Iterable  # Standard library: abstract base classes
+from math import log2  # Standard library: binary logarithm for entropy
+from typing import Any  # Standard library: generic type hints
+
+from scanner.brand_profiles import all_brand_tokens  # Project-local: brand keyword inventory
+from scanner.normalization import NormalizedTarget  # Project-local: canonical URL representation
 
 FEATURE_VERSION = "ml_features_v2"
 BASE_CHECK_NAMES = ("heuristics", "content", "ssl", "domain_age", "threat_intel")
@@ -85,6 +93,7 @@ FEATURE_FIELDS = (
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
+    """Safely coerce a value to float, returning a default on failure."""
     try:
         if value is None or value == "":
             return default
@@ -94,6 +103,7 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
 
 
 def _safe_int(value: Any, default: int = 0) -> int:
+    """Safely coerce a value to int, returning a default on failure."""
     try:
         if value is None or value == "":
             return default
@@ -103,15 +113,18 @@ def _safe_int(value: Any, default: int = 0) -> int:
 
 
 def _bool_flag(value: Any) -> int:
+    """Return 1 if the value is truthy, otherwise 0."""
     return 1 if bool(value) else 0
 
 
 def _token_count(values: Iterable[str], text: str) -> int:
+    """Count how many tokens from ``values`` appear in ``text`` (case-insensitive)."""
     lowered = text.lower()
     return sum(1 for token in values if token in lowered)
 
 
 def _entropy(value: str) -> float:
+    """Calculate Shannon entropy of a string (base-2, rounded to 6 decimals)."""
     if not value:
         return 0.0
     counts: dict[str, int] = {}
@@ -128,6 +141,7 @@ def extract_features(
     target: NormalizedTarget,
     details: dict[str, dict[str, Any]],
 ) -> dict[str, float]:
+    """Build a numeric feature dict from a normalised target and legacy check results."""
     normalized_url = target.normalized_url
     lowered_url = normalized_url.lower()
     content = details.get("content") or {}
@@ -209,6 +223,7 @@ def vectorize_features(
     features: dict[str, Any],
     feature_names: Iterable[str] | None = None,
 ) -> list[float]:
+    """Flatten a feature dict into an ordered list of floats."""
     names = tuple(feature_names or FEATURE_FIELDS)
     return [_safe_float(features.get(name)) for name in names]
 
@@ -220,6 +235,7 @@ def build_feature_row(
     label: bool | None = None,
     source: str = "",
 ) -> dict[str, Any]:
+    """Assemble a complete feature row dict (including metadata) for CSV export."""
     row: dict[str, Any] = {
         "url": target.original,
         "normalized_url": target.normalized_url,

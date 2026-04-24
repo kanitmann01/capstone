@@ -1,11 +1,21 @@
-import ssl
-import socket
-import datetime
-from scanner.normalization import NormalizedTarget
-from scanner.settings import ScannerSettings
+"""SSL/TLS certificate validation.
+
+Connects to the target host on port 443, retrieves the peer certificate,
+and checks validity, self-signature, protocol version, and issuer trust.
+"""
+
+import ssl  # Standard library: TLS/SSL wrapper
+import socket  # Standard library: low-level networking interface
+import datetime  # Standard library: date and time utilities
+from scanner.normalization import NormalizedTarget  # Project-local: canonical URL representation
+from scanner.settings import ScannerSettings  # Project-local: scanner configuration
+
 
 class SSLValidator:
+    """Validates SSL certificates for HTTPS targets."""
+
     def __init__(self, target: NormalizedTarget, settings: ScannerSettings):
+        """Initialise with target and settings."""
         self.target = target
         self.settings = settings
         self.hostname = target.host
@@ -67,6 +77,7 @@ class SSLValidator:
             return "Unknown"
 
     def run_checks(self) -> dict:
+        """Run all SSL checks and return a risk score."""
         if self.target.scheme != "https":
             return {
                 "status": "unknown",

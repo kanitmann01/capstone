@@ -1,12 +1,22 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-import ipaddress
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+"""
+URL parsing and canonicalisation utilities.
+
+Provides ``NormalizedTarget``—an immutable dataclass that represents a
+canonical URL with sorted query parameters, normalised host, and explicit
+scheme. Also includes helpers for feed-value normalisation.
+"""
+
+from dataclasses import dataclass  # Standard library: immutable data class decorator
+import ipaddress  # Standard library: IP address validation
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse  # Standard library: URL parsing and reconstruction
 
 
 @dataclass(frozen=True)
 class NormalizedTarget:
+    """Immutable canonical representation of a parsed URL."""
+
     original: str
     normalized_url: str
     scheme: str
@@ -18,6 +28,7 @@ class NormalizedTarget:
 
 
 def is_ip_address(value: str) -> bool:
+    """Return True if the supplied string is a valid IPv4 or IPv6 address."""
     try:
         ipaddress.ip_address(value)
         return True
@@ -26,10 +37,16 @@ def is_ip_address(value: str) -> bool:
 
 
 def normalize_host(host: str) -> str:
+    """Lower-case and strip trailing dots from a hostname."""
     return host.strip().lower().rstrip(".")
 
 
 def normalize_input_url(raw_url: str) -> NormalizedTarget:
+    """Parse and canonicalise a raw URL string.
+
+    Ensures a scheme is present, sorts query parameters alphabetically,
+    strips default ports (80/443), and flags IP-based hosts.
+    """
     value = (raw_url or "").strip()
     if not value:
         raise ValueError("URL is required.")
@@ -68,7 +85,7 @@ def normalize_input_url(raw_url: str) -> NormalizedTarget:
 
 def normalize_feed_value(value: str) -> tuple[str, str] | None:
     """
-    Normalize feed values into lookup keys.
+    Normalise feed values into lookup keys.
 
     Returns tuple(kind, key), where kind is one of:
     - "url"

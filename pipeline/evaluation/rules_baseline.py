@@ -1,9 +1,18 @@
 from __future__ import annotations
 
-from typing import Any
+"""
+Rules-based scoring baseline.
+
+Applies a deterministic rule set to a page snapshot (login forms,
+password fields, free hosts, brand mismatches, suspicious phrases)
+and returns a risk score and human-readable reasons.
+"""
+
+from typing import Any  # Standard library: generic type hints
 
 
 def score_rules(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Evaluate the rules baseline against an extracted page snapshot."""
     content = snapshot.get("content") or {}
     score = 0
     reasons: list[str] = []

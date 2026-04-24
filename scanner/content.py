@@ -1,20 +1,28 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-import re
-from typing import Any
-from urllib.parse import urlparse
+"""
+HTML content fetching and brand impersonation analysis.
 
-import requests
-from bs4 import BeautifulSoup
+Fetches the remote page, parses it with BeautifulSoup, and scores
+risk based on login forms, password fields, brand mismatches,
+suspicious phrases, hidden elements, and free-hosting indicators.
+"""
 
-from scanner.brand_profiles import BrandProfile
-from scanner.brand_profiles import guess_host_provider
-from scanner.brand_profiles import host_matches_brand
-from scanner.brand_profiles import load_brand_profiles
-from scanner.brand_profiles import normalize_brand_token
-from scanner.normalization import NormalizedTarget
-from scanner.settings import ScannerSettings
+from dataclasses import dataclass  # Standard library: immutable data class decorator
+import re  # Standard library: regular expressions
+from typing import Any  # Standard library: generic type hints
+from urllib.parse import urlparse  # Standard library: URL parsing
+
+import requests  # Third-party: HTTP client
+from bs4 import BeautifulSoup  # Third-party: HTML parser
+
+from scanner.brand_profiles import BrandProfile  # Project-local: brand data class
+from scanner.brand_profiles import guess_host_provider  # Project-local: free-host detection
+from scanner.brand_profiles import host_matches_brand  # Project-local: official domain matching
+from scanner.brand_profiles import load_brand_profiles  # Project-local: JSON loader
+from scanner.brand_profiles import normalize_brand_token  # Project-local: token normalisation
+from scanner.normalization import NormalizedTarget  # Project-local: canonical URL representation
+from scanner.settings import ScannerSettings  # Project-local: scanner configuration
 
 
 FREE_HOST_SUFFIXES = (".vercel.app", ".github.io", ".netlify.app", ".glitch.me", ".onrender.com", ".pages.dev", ".web.app")
@@ -34,6 +42,8 @@ GENERIC_SUSPICIOUS_PHRASES = (
 
 @dataclass(frozen=True)
 class BrandCandidate:
+    """A single brand match candidate with score and metadata."""
+
     brand: str
     score: int
     matched_fields: tuple[str, ...]
@@ -41,6 +51,7 @@ class BrandCandidate:
     official_domain_match: bool
 
     def as_dict(self) -> dict[str, Any]:
+        """Serialize to a plain dict."""
         return {
             "brand": self.brand,
             "score": self.score,
@@ -51,7 +62,10 @@ class BrandCandidate:
 
 
 class ContentScanner:
+    """Fetches and analyses page content for phishing signals."""
+
     def __init__(self, target: NormalizedTarget, settings: ScannerSettings):
+        """Initialise with a normalised target and scanner settings."""
         self.target = target
         self.settings = settings
         self.html_content = ""
@@ -77,6 +91,7 @@ class ContentScanner:
         return False
 
     def run_checks(self) -> dict:
+        """Run all content checks and return a risk result dict."""
         fetched = self.fetch_content()
         if not fetched:
             return {
@@ -193,18 +208,21 @@ class ContentScanner:
         }
 
     def _page_title(self) -> str:
+        """Extract the page title from the soup."""
         if not self.soup:
             return ""
         title_tag = self.soup.find("title")
         return title_tag.get_text(" ", strip=True) if title_tag else ""
 
     def _visible_text(self) -> str:
+        """Extract visible text from the soup, collapsing whitespace."""
         if not self.soup:
             return ""
         text = self.soup.get_text(" ", strip=True)
         return re.sub(r"\s+", " ", text).strip()
 
     def _heading_texts(self) -> list[str]:
+        """Extract text from h1, h2, and h3 tags."""
         if not self.soup:
             return []
         headings = []
@@ -216,6 +234,7 @@ class ContentScanner:
         return headings[:12]
 
     def _form_stats(self, forms) -> dict[str, int]:
+        """Count forms, password fields, and input fields."""
         password_count = 0
         input_count = 0
         form_count = 0
@@ -235,6 +254,7 @@ class ContentScanner:
         }
 
     def _nav_link_count(self) -> int:
+        """Count navigation links inside <nav> elements."""
         if not self.soup:
             return 0
         nav_links = 0
@@ -243,6 +263,7 @@ class ContentScanner:
         return nav_links
 
     def _image_domains(self) -> list[str]:
+        """Extract unique image source domains."""
         if not self.soup:
             return []
         domains: list[str] = []
@@ -259,6 +280,7 @@ class ContentScanner:
         return sorted(set(domains))
 
     def _form_action_domains(self, forms) -> list[str]:
+        """Extract unique form action domains."""
         domains: list[str] = []
         for form in forms:
             action = str(form.get("action") or "").strip()
@@ -273,6 +295,7 @@ class ContentScanner:
         return sorted(set(domains))
 
     def _check_hidden_elements(self) -> bool:
+        """Detect hidden iframes or display:none elements."""
         if not self.soup:
             return False
         for iframe in self.soup.find_all("iframe"):
@@ -292,6 +315,7 @@ class ContentScanner:
         image_domains: list[str],
         form_action_domains: list[str],
     ) -> list[BrandCandidate]:
+        """Score brand profiles against page content and return top candidates."""
         lowered_title = page_title.lower()
         lowered_text = visible_text.lower()
         lowered_headings = " ".join(heading_texts).lower()
@@ -366,22 +390,26 @@ class ContentScanner:
         return candidates[:5]
 
     def _profile_by_name(self, name: str) -> BrandProfile | None:
+        """Look up a brand profile by its exact name."""
         for profile in self.brand_profiles:
             if profile.name == name:
                 return profile
         return None
 
     def _brand_path_match(self) -> bool:
+        """Return True if any brand token appears in the URL path or query."""
         lowered_path = f"{self.target.path} {self.target.query}".lower()
         return any(token and token in lowered_path for token in self._brand_tokens())
 
     def _brand_tokens(self) -> tuple[str, ...]:
+        """Return all normalised brand tokens from loaded profiles."""
         tokens = []
         for profile in self.brand_profiles:
             tokens.extend(profile.normalized_keywords())
         return tuple(sorted(set(tokens)))
 
     def _suspicious_phrase_hits(self, *, page_title: str, visible_text: str) -> list[str]:
+        """Find generic and brand-specific suspicious phrases in the page text."""
         corpus = f"{page_title} {visible_text}".lower()
         hits: list[str] = []
         for phrase in GENERIC_SUSPICIOUS_PHRASES:
@@ -395,6 +423,7 @@ class ContentScanner:
         return sorted(set(hits))
 
     def _domain_mismatch(self, domain: str, profile: BrandProfile | None) -> bool:
+        """Return True if the domain does not match the brand's official domains."""
         if not profile:
             return False
         normalized_domain = str(domain or "").lower()
@@ -420,6 +449,7 @@ class ContentScanner:
         password_on_http: bool,
         brand_candidates: list[BrandCandidate],
     ) -> tuple[int, list[str]]:
+        """Calculate a risk score and list of reasons from content signals."""
         score = 0
         reasons: list[str] = []
 

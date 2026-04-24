@@ -1,9 +1,17 @@
 from __future__ import annotations
 
-from typing import Any
+"""
+Model comparison and confusion matrix metrics.
+
+Provides pure functions to compute confusion counts (TP/TN/FP/FN)
+and derive precision, recall, F1, and accuracy from those counts.
+"""
+
+from typing import Any  # Standard library: generic type hints
 
 
 def confusion_counts(rows: list[dict[str, Any]], *, actual_key: str, predicted_key: str) -> dict[str, int]:
+    """Count true/false positives/negatives from a list of row dicts."""
     tp = tn = fp = fn = 0
     for row in rows:
         actual = str(row.get(actual_key)).strip().lower() in {"1", "true", "phishing", "yes"}
@@ -20,6 +28,7 @@ def confusion_counts(rows: list[dict[str, Any]], *, actual_key: str, predicted_k
 
 
 def metrics_from_counts(counts: dict[str, int]) -> dict[str, float]:
+    """Derive accuracy, precision, recall, and F1 from confusion counts."""
     tp = counts["tp"]
     tn = counts["tn"]
     fp = counts["fp"]

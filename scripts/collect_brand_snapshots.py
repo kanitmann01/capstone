@@ -1,17 +1,26 @@
 from __future__ import annotations
 
-import argparse
-import csv
-from pathlib import Path
+"""
+CLI script: capture page snapshots from a CSV into the SQLite dataset store.
 
-from scanner.content import ContentScanner
-from scanner.dataset_store import BrandLoginDatasetStore
-from scanner.dataset_store import SnapshotRecord
-from scanner.normalization import normalize_input_url
-from scanner.settings import ScannerSettings
+Reads a CSV with a ``url`` column (and optionally ``label`` / ``is_phishing``),
+fetches each page, extracts content/brand signals, and persists the snapshot
+via ``BrandLoginDatasetStore``.
+"""
+
+import argparse  # Standard library: command-line argument parsing
+import csv  # Standard library: CSV reading
+from pathlib import Path  # Standard library: filesystem path abstraction
+
+from scanner.content import ContentScanner  # Project-local: HTML fetch and content analysis
+from scanner.dataset_store import BrandLoginDatasetStore  # Project-local: SQLite persistence
+from scanner.dataset_store import SnapshotRecord  # Project-local: immutable snapshot dataclass
+from scanner.normalization import normalize_input_url  # Project-local: URL canonicalisation
+from scanner.settings import ScannerSettings  # Project-local: scanner configuration
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Configure the CLI argument parser."""
     parser = argparse.ArgumentParser(
         description="Capture page snapshots into the brand-login SQLite dataset store.",
     )
@@ -30,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Entry point: parse args, capture snapshots, print summary."""
     args = build_parser().parse_args()
     settings = ScannerSettings.from_env()
     store_path = Path(args.db_path or settings.brand_dataset_db_path)

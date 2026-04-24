@@ -1,21 +1,30 @@
 from __future__ import annotations
 
-import csv
-from dataclasses import asdict
-from dataclasses import dataclass
-from datetime import datetime, timezone
-import json
-from pathlib import Path
-import shutil
-import time
-from typing import Any
+"""
+TensorFlow and decision tree model training utilities.
 
-from scanner.ml_features import FEATURE_FIELDS
-from scanner.ml_features import FEATURE_VERSION
-from scanner.ml_features import build_feature_row
-from scanner.ml_features import extract_features
-from scanner.normalization import normalize_input_url
-from scanner.settings import ScannerSettings
+Handles feature dataset generation from labeled CSVs, TensorFlow dense
+classifier training with early stopping, model registry management,
+and artifact activation. Also includes permutation feature importance,
+threshold analysis, and TensorBoard logging helpers.
+"""
+
+import csv  # Standard library: CSV reading and writing
+from dataclasses import asdict  # Standard library: dataclass -> dict
+from dataclasses import dataclass  # Standard library: immutable data class decorator
+from datetime import datetime, timezone  # Standard library: UTC-aware timestamps
+import json  # Standard library: JSON serialization
+from pathlib import Path  # Standard library: filesystem path abstraction
+import shutil  # Standard library: file copy operations
+import time  # Standard library: timestamps for TensorBoard
+from typing import Any  # Standard library: generic type hints
+
+from scanner.ml_features import FEATURE_FIELDS  # Project-local: ordered feature names
+from scanner.ml_features import FEATURE_VERSION  # Project-local: feature schema version
+from scanner.ml_features import build_feature_row  # Project-local: row assembly for CSV export
+from scanner.ml_features import extract_features  # Project-local: structured feature engineering
+from scanner.normalization import normalize_input_url  # Project-local: URL canonicalisation
+from scanner.settings import ScannerSettings  # Project-local: scanner configuration
 
 TRUTHY_VALUES = {"1", "true", "t", "yes", "y"}
 FALSY_VALUES = {"0", "false", "f", "no", "n"}
@@ -24,6 +33,8 @@ MODEL_REGISTRY_VERSION = "ml_model_registry_v1"
 
 @dataclass(frozen=True)
 class TensorFlowTrainingConfig:
+    """Immutable hyperparameters for TensorFlow dense classifier training."""
+
     model_type: str = "tensorflow_dense"
     test_size: float = 0.2
     random_state: int = 42
@@ -41,6 +52,8 @@ class TensorFlowTrainingConfig:
 
 @dataclass(frozen=True)
 class FeatureDatasetSummary:
+    """Result of generating a feature dataset from a labeled CSV."""
+
     input_rows: int
     usable_rows: int
     skipped_rows: int
@@ -51,10 +64,12 @@ class FeatureDatasetSummary:
 
 
 def utc_now_iso() -> str:
+    """Return the current UTC timestamp as an ISO-8601 string."""
     return datetime.now(timezone.utc).isoformat()
 
 
 def _registry_payload(path: Path) -> dict[str, Any]:
+    """Load or initialise the model registry JSON payload."""
     if not path.exists():
         return {
             "registry_version": MODEL_REGISTRY_VERSION,
@@ -81,6 +96,7 @@ def _registry_payload(path: Path) -> dict[str, Any]:
 
 
 def load_model_registry(settings: ScannerSettings) -> list[dict[str, Any]]:
+    """Return a chronologically sorted list of registry entries."""
     payload = _registry_payload(Path(settings.ml_registry_path))
     models = [entry for entry in payload.get("models", []) if isinstance(entry, dict)]
     return sorted(
@@ -97,6 +113,7 @@ def append_model_registry_entry(
     input_filename: str,
     report: dict[str, Any],
 ) -> dict[str, Any]:
+    """Append a training run to the model registry."""
     registry_path = Path(settings.ml_registry_path)
     registry_path.parent.mkdir(parents=True, exist_ok=True)
     payload = _registry_payload(registry_path)
@@ -145,6 +162,7 @@ def append_model_registry_entry(
 
 
 def parse_label(value: Any) -> bool:
+    """Parse a flexible truthy/falsy value into a boolean."""
     normalized = str(value).strip().lower()
     if normalized in TRUTHY_VALUES:
         return True
@@ -156,6 +174,7 @@ def parse_label(value: Any) -> bool:
 
 
 def sanitize_training_config(raw: dict[str, Any] | None, settings: ScannerSettings) -> TensorFlowTrainingConfig:
+    """Validate raw training config and return a typed TensorFlowTrainingConfig."""
     payload = dict(raw or {})
     test_size = float(payload.get("test_size", settings.ml_default_test_size))
     if test_size <= 0.05 or test_size >= 0.45:
@@ -225,6 +244,7 @@ def sanitize_training_config(raw: dict[str, Any] | None, settings: ScannerSettin
 
 
 def _parse_hidden_units(raw: Any) -> tuple[int, ...]:
+    """Parse hidden layer sizes from a list, tuple, or comma-separated string."""
     values: list[int] = []
     if isinstance(raw, (list, tuple)):
         candidates = list(raw)
@@ -242,6 +262,7 @@ def _parse_hidden_units(raw: Any) -> tuple[int, ...]:
 
 
 def describe_tensorflow_runtime() -> dict[str, Any]:
+    """Return metadata about the TensorFlow installation and available devices."""
     try:
         import tensorflow as tf  # pyright: ignore[reportMissingImports]
     except Exception as exc:  # pragma: no cover - depends on environment.
@@ -276,6 +297,7 @@ def describe_tensorflow_runtime() -> dict[str, Any]:
 
 
 def _runtime_device_options(gpu_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Build a list of device options for UI display."""
     devices = [
         {"id": "auto", "label": "Auto select", "type": "auto"},
         {"id": "cpu", "label": "CPU", "type": "cpu"},
@@ -297,6 +319,7 @@ def generate_feature_dataset(
     label_source: str = "",
     progress_callback=None,
 ) -> FeatureDatasetSummary:
+    """Read a labeled CSV, run the scanner, and write a feature dataset CSV."""
     input_path = Path(input_csv)
     output_path = Path(output_csv)
 
@@ -419,6 +442,7 @@ def train_tensorflow_from_dataset(
     settings: ScannerSettings,
     progress_callback=None,
 ) -> dict[str, Any]:
+    """Train a TensorFlow dense classifier on a feature dataset."""
     try:
         import numpy as np
         import pandas as pd
@@ -805,6 +829,7 @@ def train_decision_tree_from_dataset(
     settings: ScannerSettings,
     progress_callback=None,
 ) -> dict[str, Any]:
+    """Alias for train_tensorflow_from_dataset (legacy compatibility)."""
     return train_tensorflow_from_dataset(
         dataset_csv=dataset_csv,
         output_dir=output_dir,
@@ -821,6 +846,7 @@ def activate_model_artifacts(
     model_filename: str = "model.keras",
     metadata_filename: str = "model_metadata.json",
 ) -> None:
+    """Copy the latest run artifacts into the active model slots."""
     run_path = Path(run_dir)
     active_model_path = Path(settings.ml_model_path)
     active_metadata_path = Path(settings.ml_metadata_path)
@@ -841,6 +867,7 @@ def train_from_labeled_csv(
     label_source: str = "",
     progress_callback=None,
 ) -> dict[str, Any]:
+    """End-to-end pipeline: feature extraction -> dataset -> training -> registry entry."""
     run_path = Path(run_dir)
     run_path.mkdir(parents=True, exist_ok=True)
     input_path = Path(input_csv)
@@ -887,6 +914,7 @@ def train_from_labeled_csv(
 
 
 def _resolve_tf_device(device: str) -> str:
+    """Map a device selector (auto, cpu, gpu:N) to a TensorFlow device string."""
     import tensorflow as tf  # pyright: ignore[reportMissingImports]
 
     selected = str(device or "auto").strip().lower()
@@ -909,6 +937,7 @@ def _resolve_tf_device(device: str) -> str:
 
 
 def _training_history_payload(history: dict[str, list[Any]]) -> dict[str, list[float]]:
+    """Normalise Keras history into a serialisable payload."""
     payload: dict[str, list[float]] = {"epoch": []}
     max_length = 0
     for values in history.values():
@@ -920,6 +949,7 @@ def _training_history_payload(history: dict[str, list[Any]]) -> dict[str, list[f
 
 
 def _best_epoch(history: dict[str, list[Any]]) -> int | None:
+    """Find the epoch with the lowest validation loss."""
     val_loss = history.get("val_loss") or []
     if not val_loss:
         return None
@@ -936,6 +966,7 @@ def _permutation_feature_importance(
     roc_auc_score,
     random_state: int,
 ) -> list[dict[str, Any]]:
+    """Compute permutation-based feature importance on the test set."""
     if len(set(y_test)) < 2 or len(probabilities) != len(y_test):
         return []
     import numpy as np
@@ -964,6 +995,7 @@ def _metrics_for_split(
     f1_score,
     roc_auc_score,
 ) -> dict[str, Any]:
+    """Compute accuracy, precision, recall, F1, and ROC-AUC for a data split."""
     roc_auc = 0.0
     if len(set(y_true)) > 1:
         roc_auc = float(roc_auc_score(y_true, probabilities))
@@ -977,6 +1009,7 @@ def _metrics_for_split(
 
 
 def _probability_distribution(*, probabilities: list[float], labels: list[int]) -> list[dict[str, Any]]:
+    """Bin predicted probabilities into 10-decile histograms."""
     bins = [
         {
             "label": f"{start}-{start + 9}" if start < 90 else "90-100",
@@ -998,6 +1031,7 @@ def _probability_distribution(*, probabilities: list[float], labels: list[int]) 
 
 
 def _roc_curve_points(*, y_true: list[int], probabilities: list[float], roc_curve) -> dict[str, Any]:
+    """Generate ROC curve points and compute AUC via trapezoidal integration."""
     if len(set(y_true)) < 2:
         return {"points": [], "auc": 0.0}
     false_positive_rate, true_positive_rate, thresholds = roc_curve(y_true, probabilities)
@@ -1028,6 +1062,7 @@ def _precision_recall_curve_points(
     precision_recall_curve,
     auc,
 ) -> dict[str, Any]:
+    """Generate precision-recall curve points and compute PR-AUC."""
     precision, recall, thresholds = precision_recall_curve(y_true, probabilities)
     points = []
     for index, (precision_value, recall_value) in enumerate(zip(precision, recall, strict=False)):
@@ -1052,6 +1087,7 @@ def _threshold_analysis(
     recall_score,
     f1_score,
 ) -> list[dict[str, Any]]:
+    """Evaluate metrics across a grid of decision thresholds."""
     analysis: list[dict[str, Any]] = []
     for threshold_percent in range(5, 100, 5):
         threshold = threshold_percent / 100
@@ -1083,6 +1119,7 @@ def _calibration_curve(
     probabilities: list[float],
     brier_score_loss,
 ) -> dict[str, Any]:
+    """Compute calibration bins and Brier score."""
     bins = [
         {
             "label": f"{start}-{start + 10}%",
@@ -1123,6 +1160,7 @@ def _calibration_curve(
 
 
 def _feature_importance_cumulative(feature_importance: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rank features by importance and add cumulative coverage."""
     if not feature_importance:
         return []
     total_importance = sum(float(item.get("importance") or 0.0) for item in feature_importance)
@@ -1151,6 +1189,7 @@ def _prediction_error_examples(
     y_pred: list[int],
     probabilities: list[float],
 ) -> dict[str, Any]:
+    """Collect and rank false positives and false negatives by confidence."""
     false_positives: list[dict[str, Any]] = []
     false_negatives: list[dict[str, Any]] = []
     for index, (actual, predicted, probability) in enumerate(zip(y_true, y_pred, probabilities, strict=False)):
@@ -1183,6 +1222,7 @@ def _prediction_error_examples(
 
 
 def _confusion_counts(*, y_true: list[int], y_pred: list[int]) -> tuple[int, int, int, int]:
+    """Manually compute TP, TN, FP, FN."""
     tn = fp = fn = tp = 0
     for actual, predicted in zip(y_true, y_pred, strict=False):
         if int(actual) == 1 and int(predicted) == 1:
@@ -1209,6 +1249,7 @@ def _write_tensorboard_logs(
     roc_curve_points: list[dict[str, Any]],
     precision_recall_points: list[dict[str, Any]],
 ) -> dict[str, Any]:
+    """Write scalar summaries to TensorBoard event files."""
     try:
         from tensorboard.compat.proto import event_pb2  # pyright: ignore[reportMissingImports]
         from tensorboard.compat.proto import summary_pb2  # pyright: ignore[reportMissingImports]

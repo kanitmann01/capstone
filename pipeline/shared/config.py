@@ -1,12 +1,22 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-import os
-from pathlib import Path
+"""
+Capstone-wide configuration and paths.
+
+``CapstoneConfig`` is a frozen dataclass that centralises all file-system
+roots, model paths, thresholds, and FastText hyperparameters. It is
+constructed from environment variables with sensible defaults.
+"""
+
+from dataclasses import dataclass  # Standard library: immutable data class decorator
+import os  # Standard library: environment variable access
+from pathlib import Path  # Standard library: filesystem path abstraction
 
 
 @dataclass(frozen=True)
 class CapstoneConfig:
+    """Immutable container for global capstone settings."""
+
     project_root: Path
     data_root: Path
     brand_profiles_path: Path
@@ -27,6 +37,7 @@ class CapstoneConfig:
 
     @staticmethod
     def from_env() -> "CapstoneConfig":
+        """Build a CapstoneConfig from environment variables and defaults."""
         project_root = Path(__file__).resolve().parents[2]
         data_root = Path(os.getenv("CAPSTONE_DATA_ROOT", str(project_root / "data")))
         brand_profiles_path = Path(
@@ -69,6 +80,7 @@ class CapstoneConfig:
 
 
 def _int_env(name: str, default: int) -> int:
+    """Safely parse an integer environment variable."""
     value = os.getenv(name)
     if value is None:
         return default
@@ -79,6 +91,7 @@ def _int_env(name: str, default: int) -> int:
 
 
 def _float_env(name: str, default: float) -> float:
+    """Safely parse a float environment variable."""
     value = os.getenv(name)
     if value is None:
         return default

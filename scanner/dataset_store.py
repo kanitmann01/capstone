@@ -1,12 +1,20 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
-import hashlib
-import json
-import sqlite3
-from pathlib import Path
-from typing import Any
+"""
+SQLite persistence layer for scan snapshots and dataset records.
+
+Provides ``SnapshotRecord``—an immutable dataclass for snapshot
+metadata—and ``BrandLoginDatasetStore`` which manages the SQLite
+schema, deduplication, and CRUD operations.
+"""
+
+from dataclasses import dataclass  # Standard library: immutable data class decorator
+from datetime import datetime, timezone  # Standard library: UTC-aware timestamps
+import hashlib  # Standard library: SHA-256 hashing for deduplication
+import json  # Standard library: JSON serialization
+import sqlite3  # Standard library: SQLite database engine
+from pathlib import Path  # Standard library: filesystem path abstraction
+from typing import Any  # Standard library: generic type hints
 
 
 DATASET_SCHEMA_VERSION = "brand_login_dataset_v2"
@@ -14,6 +22,8 @@ DATASET_SCHEMA_VERSION = "brand_login_dataset_v2"
 
 @dataclass(frozen=True)
 class SnapshotRecord:
+    """Immutable representation of a captured page snapshot."""
+
     url: str
     normalized_url: str
     host: str
@@ -56,6 +66,7 @@ class SnapshotRecord:
         label: int | None = None,
         notes: str = "",
     ) -> "SnapshotRecord":
+        """Factory that computes a content hash and captures the current UTC timestamp."""
         normalized_extraction = json.dumps(extraction or {}, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
         derived_content_hash = content_hash or hashlib.sha256(
             "|".join(
@@ -94,17 +105,22 @@ class SnapshotRecord:
 
 
 class BrandLoginDatasetStore:
+    """SQLite-backed store for phishing scan snapshots."""
+
     def __init__(self, db_path: str | Path):
+        """Open (or create) the SQLite database and ensure schema."""
         self.path = Path(db_path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._ensure_schema()
 
     def _connect(self) -> sqlite3.Connection:
+        """Return a connection with Row factory enabled."""
         conn = sqlite3.connect(self.path)
         conn.row_factory = sqlite3.Row
         return conn
 
     def _ensure_schema(self) -> None:
+        """Create tables, indexes, and migrate missing columns."""
         with self._connect() as conn:
             conn.execute(
                 """
@@ -155,6 +171,7 @@ class BrandLoginDatasetStore:
             conn.commit()
 
     def _ensure_columns(self, conn: sqlite3.Connection) -> None:
+        """Add any columns that are missing from an older schema."""
         existing = {
             str(row["name"])
             for row in conn.execute("PRAGMA table_info(snapshot_records)").fetchall()
@@ -172,6 +189,7 @@ class BrandLoginDatasetStore:
             conn.execute(f"ALTER TABLE snapshot_records ADD COLUMN {column_name} {column_sql}")
 
     def add_snapshot(self, record: SnapshotRecord) -> int:
+        """Insert a snapshot, deduplicating by (normalized_url, content_hash)."""
         with self._connect() as conn:
             existing = conn.execute(
                 """
@@ -222,6 +240,7 @@ class BrandLoginDatasetStore:
             return int(cursor.lastrowid)
 
     def update_label(self, snapshot_id: int, label: int, notes: str = "") -> None:
+        """Update the ground-truth label for a snapshot."""
         with self._connect() as conn:
             conn.execute(
                 """
@@ -234,6 +253,7 @@ class BrandLoginDatasetStore:
             conn.commit()
 
     def iter_recent(self, limit: int = 25) -> list[dict[str, Any]]:
+        """Return the most recent snapshots as a list of dicts."""
         with self._connect() as conn:
             rows = conn.execute(
                 """
@@ -247,6 +267,7 @@ class BrandLoginDatasetStore:
         return [dict(row) for row in rows]
 
     def summary(self) -> dict[str, Any]:
+        """Return aggregate statistics about the dataset."""
         with self._connect() as conn:
             counts = conn.execute(
                 """

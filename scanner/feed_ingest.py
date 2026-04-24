@@ -1,21 +1,31 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-import gzip
-import json
-from pathlib import Path
-import threading
-from typing import Any
+"""
+Threat intelligence feed ingestion and caching.
 
-import requests
+Downloads OpenPhish, PhishTank, and VT-style snapshot feeds,
+builds an in-memory index with background refresh, and persists
+the index to disk for fast lookups.
+"""
 
-from scanner.normalization import NormalizedTarget, normalize_feed_value
-from scanner.settings import ScannerSettings
+from dataclasses import dataclass, field  # Standard library: lightweight data structures
+from datetime import datetime, timedelta, timezone  # Standard library: date/time utilities
+import gzip  # Standard library: gzip decompression
+import json  # Standard library: JSON serialization
+from pathlib import Path  # Standard library: filesystem path abstraction
+import threading  # Standard library: concurrency primitives
+from typing import Any  # Standard library: generic type hints
+
+import requests  # Third-party: HTTP client
+
+from scanner.normalization import NormalizedTarget, normalize_feed_value  # Project-local: URL normalisation
+from scanner.settings import ScannerSettings  # Project-local: scanner configuration
 
 
 @dataclass
 class FeedIndex:
+    """In-memory index mapping URLs, hosts, and IPs to threat-intel entries."""
+
     urls: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     hosts: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     ips: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
@@ -23,6 +33,7 @@ class FeedIndex:
     refresh_error: str | None = None
 
     def add_entry(self, kind: str, key: str, entry: dict[str, Any]) -> None:
+        """Add a feed entry to the appropriate index bucket."""
         if kind == "url":
             self.urls.setdefault(key, []).append(entry)
         elif kind == "host":
@@ -32,7 +43,10 @@ class FeedIndex:
 
 
 class ThreatFeedCache:
+    """Manages threat-feed refresh, indexing, and lookup with thread-safe caching."""
+
     def __init__(self, settings: ScannerSettings):
+        """Initialise cache directory, locks, and on-disk index."""
         self.settings = settings
         self._lock = threading.Lock()
         self._index = FeedIndex()
@@ -45,6 +59,7 @@ class ThreatFeedCache:
         self._load_disk_index()
 
     def metadata(self) -> dict[str, Any]:
+        """Return cache metadata including freshness and errors."""
         now = datetime.now(timezone.utc)
         max_age = timedelta(minutes=max(self.settings.feed_refresh_minutes, 1))
         with self._lock:
@@ -64,15 +79,18 @@ class ThreatFeedCache:
         }
 
     def refresh_if_stale(self) -> None:
+        """Trigger a background refresh only if the cache is stale."""
         if self._is_stale():
             self._trigger_background_refresh()
 
     def refresh_now(self) -> None:
+        """Synchronously rebuild the index from all configured feeds."""
         with self._lock:
             self._last_refresh_attempt_utc = datetime.now(timezone.utc).isoformat()
         self._apply_refresh(self._build_index())
 
     def _build_index(self) -> tuple[FeedIndex, datetime]:
+        """Download and parse all feeds into a new FeedIndex."""
         new_index = FeedIndex()
         errors: list[str] = []
 
@@ -111,6 +129,7 @@ class ThreatFeedCache:
         return new_index, finished_at
 
     def _apply_refresh(self, refresh_output: tuple[FeedIndex, datetime]) -> None:
+        """Atomically swap in a newly built index."""
         new_index, finished_at = refresh_output
         with self._lock:
             self._index = new_index
@@ -120,6 +139,7 @@ class ThreatFeedCache:
         self._save_disk_index()
 
     def _refresh_worker(self) -> None:
+        """Background thread entry point for index rebuilding."""
         try:
             result = self._build_index()
             self._apply_refresh(result)
@@ -130,6 +150,7 @@ class ThreatFeedCache:
                 self._index.refresh_error = f"background_refresh_failed: {exc}"
 
     def _trigger_background_refresh(self) -> None:
+        """Spawn a daemon thread to rebuild the index."""
         with self._lock:
             if self._refresh_in_progress:
                 return
@@ -139,6 +160,7 @@ class ThreatFeedCache:
         worker.start()
 
     def _is_stale(self) -> bool:
+        """Return True if the cache has exceeded its maximum age."""
         with self._lock:
             if self._last_refresh_time is None:
                 return True
@@ -146,6 +168,7 @@ class ThreatFeedCache:
             return datetime.now(timezone.utc) - self._last_refresh_time >= max_age
 
     def lookup(self, target: NormalizedTarget) -> dict[str, Any]:
+        """Query the index for a target and return match results with risk score."""
         self.refresh_if_stale()
         with self._lock:
             url_hits = self._index.urls.get(target.normalized_url, [])
@@ -176,6 +199,7 @@ class ThreatFeedCache:
             }
 
     def _ingest_openphish(self, index: FeedIndex) -> None:
+        """Download and parse the OpenPhish public feed."""
         response = requests.get(
             self.settings.openphish_url,
             timeout=self.settings.request_timeout_seconds,
@@ -198,6 +222,7 @@ class ThreatFeedCache:
             )
 
     def _ingest_phishtank(self, index: FeedIndex) -> None:
+        """Download and parse the PhishTank JSON feed."""
         request_url = self.settings.phishtank_data_url
         if "{app_key}" in request_url:
             if not self.settings.phishtank_app_key:
@@ -253,6 +278,7 @@ class ThreatFeedCache:
         label: str,
         apply_threshold: bool,
     ) -> None:
+        """Download, decompress, and parse a VT-style snapshot file."""
         if not filename:
             return
         url = f"{self.settings.vt_base_url.rstrip('/')}/{filename}"
@@ -288,6 +314,7 @@ class ThreatFeedCache:
 
     @staticmethod
     def _parse_vt_line(line: str) -> tuple[int, str] | None:
+        """Parse a single VT snapshot line into (source_count, value)."""
         stripped = line.strip()
         if not stripped:
             return None
@@ -305,6 +332,7 @@ class ThreatFeedCache:
         return source_count, value
 
     def _save_disk_index(self) -> None:
+        """Persist the current index to disk as JSON."""
         payload = {
             "urls": self._index.urls,
             "hosts": self._index.hosts,
@@ -315,6 +343,7 @@ class ThreatFeedCache:
         self.index_file.write_text(json.dumps(payload), encoding="utf-8")
 
     def _load_disk_index(self) -> None:
+        """Hydrate the index from a previously saved JSON file."""
         if not self.index_file.exists():
             return
         try:

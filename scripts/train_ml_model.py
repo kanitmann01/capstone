@@ -1,16 +1,25 @@
 from __future__ import annotations
 
-import argparse
-from pathlib import Path
+"""
+CLI script: train the TensorFlow phishing classifier from labeled URLs.
 
-from scanner.feed_ingest import ThreatFeedCache
-from scanner.ml_training import sanitize_training_config
-from scanner.ml_training import train_from_labeled_csv
-from scanner.service import ScanService
-from scanner.settings import ScannerSettings
+Orchestrates feature extraction, dataset generation, model training,
+and optional artifact activation. Hyperparameters can be overridden
+via CLI flags; defaults come from ``ScannerSettings``.
+"""
+
+import argparse  # Standard library: command-line argument parsing
+from pathlib import Path  # Standard library: filesystem path abstraction
+
+from scanner.feed_ingest import ThreatFeedCache  # Project-local: threat-intel cache
+from scanner.ml_training import sanitize_training_config  # Project-local: config validator
+from scanner.ml_training import train_from_labeled_csv  # Project-local: end-to-end training pipeline
+from scanner.service import ScanService  # Project-local: combined scanner service
+from scanner.settings import ScannerSettings  # Project-local: scanner configuration
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Configure the CLI argument parser with extensive training hyperparameter overrides."""
     parser = argparse.ArgumentParser(
         description="Train the TensorFlow phishing classifier from labeled URLs.",
     )
@@ -41,6 +50,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Entry point: parse args, sanitise config, train model, print summary."""
     args = build_parser().parse_args()
     settings = ScannerSettings.from_env()
     feed_cache = ThreatFeedCache(settings)

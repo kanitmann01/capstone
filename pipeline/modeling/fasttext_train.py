@@ -1,17 +1,26 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-from dataclasses import dataclass
-from datetime import datetime, timezone
-import json
-from pathlib import Path
-from typing import Any
+"""
+FastText supervised model training.
 
-from pipeline.shared.config import CapstoneConfig
+Wraps ``fasttext.train_supervised`` with a typed configuration dataclass
+and writes model binaries plus JSON metadata sidecars.
+"""
+
+from dataclasses import asdict  # Standard library: dataclass -> dict
+from dataclasses import dataclass  # Standard library: immutable data class decorator
+from datetime import datetime, timezone  # Standard library: UTC-aware timestamps
+import json  # Standard library: JSON serialization
+from pathlib import Path  # Standard library: filesystem path abstraction
+from typing import Any  # Standard library: generic type hints
+
+from pipeline.shared.config import CapstoneConfig  # Project-local: global capstone configuration
 
 
 @dataclass(frozen=True)
 class FastTextTrainingConfig:
+    """Immutable hyperparameters for FastText supervised training."""
+
     dim: int = 100
     epoch: int = 25
     lr: float = 0.4
@@ -27,6 +36,7 @@ def train_fasttext_model(
     metadata_path: str | Path,
     config: FastTextTrainingConfig,
 ) -> dict[str, Any]:
+    """Train a FastText classifier and persist model + metadata."""
     try:
         import fasttext  # type: ignore
     except Exception as exc:  # pragma: no cover - dependency failure is environment-specific.
@@ -63,6 +73,7 @@ def train_fasttext_model(
 
 
 def load_fasttext_model(model_path: str | Path):
+    """Load a previously trained FastText model from disk."""
     try:
         import fasttext  # type: ignore
     except Exception as exc:  # pragma: no cover - dependency failure is environment-specific.
@@ -71,6 +82,7 @@ def load_fasttext_model(model_path: str | Path):
 
 
 def default_training_config(config: CapstoneConfig) -> FastTextTrainingConfig:
+    """Map CapstoneConfig values into a FastTextTrainingConfig instance."""
     return FastTextTrainingConfig(
         dim=config.fasttext_dim,
         epoch=config.fasttext_epoch,

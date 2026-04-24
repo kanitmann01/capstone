@@ -1,17 +1,26 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
+"""
+FastText model inference and prediction.
 
-import numpy as np
+Loads a trained ``.bin`` model on demand, patches numpy compatibility,
+and returns structured prediction objects with label, probability, and score.
+"""
 
-from pipeline.modeling.fasttext_dataset import serialize_snapshot
-from pipeline.modeling.fasttext_train import load_fasttext_model
+from dataclasses import dataclass  # Standard library: lightweight data structures
+from pathlib import Path  # Standard library: filesystem path abstraction
+from typing import Any  # Standard library: generic type hints
+
+import numpy as np  # Third-party: numerical arrays
+
+from pipeline.modeling.fasttext_dataset import serialize_snapshot  # Project-local: snapshot -> text
+from pipeline.modeling.fasttext_train import load_fasttext_model  # Project-local: model loader
 
 
 @dataclass
 class FastTextPrediction:
+    """Structured result from a FastText inference call."""
+
     label: str
     probability: float
     score: float
@@ -19,6 +28,7 @@ class FastTextPrediction:
     raw_probability: float
 
     def as_dict(self) -> dict[str, Any]:
+        """Serialize the prediction to a plain dict."""
         return {
             "label": self.label,
             "probability": self.probability,
@@ -29,12 +39,16 @@ class FastTextPrediction:
 
 
 class FastTextDetector:
+    """Lazy-loading wrapper around a FastText supervised model."""
+
     def __init__(self, model_path: str | Path, threshold: float = 0.5):
+        """Initialise with model path and decision threshold."""
         self.model_path = Path(model_path)
         self.threshold = threshold
         self._model = None
 
     def _ensure_model(self):
+        """Load the model if it has not yet been loaded."""
         if self._model is not None:
             return self._model
         if not self.model_path.exists():
@@ -44,6 +58,7 @@ class FastTextDetector:
         return self._model
 
     def _patch_fasttext_numpy_compat(self) -> None:
+        """Monkey-patch fasttext's internal numpy array constructor for compatibility."""
         try:
             import fasttext.FastText as fasttext_fasttext  # type: ignore
         except Exception:
@@ -57,9 +72,11 @@ class FastTextDetector:
             fasttext_fasttext.np.array = _array_compat  # type: ignore[attr-defined]
 
     def available(self) -> bool:
+        """Return True if the model file exists and is loadable."""
         return self._ensure_model() is not None
 
     def predict_text(self, text: str) -> FastTextPrediction | None:
+        """Run inference on a raw text string."""
         model = self._ensure_model()
         if model is None:
             return None
@@ -81,5 +98,6 @@ class FastTextDetector:
         )
 
     def predict_snapshot(self, snapshot: dict[str, Any]) -> FastTextPrediction | None:
+        """Serialise a snapshot and run inference on it."""
         text = serialize_snapshot(snapshot)
         return self.predict_text(text)

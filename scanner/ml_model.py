@@ -1,34 +1,44 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-import json
-from pathlib import Path
-import threading
-from typing import Any
+"""
+Structured ML model inference wrapper.
+
+``MLScanner`` lazily loads a trained scikit-learn or TensorFlow model,
+vectorises features, runs inference, and maintains lightweight analytics.
+"""
+
+from datetime import datetime, timezone  # Standard library: UTC-aware timestamps
+import json  # Standard library: JSON parsing
+from pathlib import Path  # Standard library: filesystem path abstraction
+import threading  # Standard library: concurrency primitives for model loading
+from typing import Any  # Standard library: generic type hints
 
 try:
-    import joblib
+    import joblib  # Third-party: model persistence for scikit-learn
 except ImportError:  # pragma: no cover - handled at runtime.
     joblib = None
 
 try:
-    import numpy as np
+    import numpy as np  # Third-party: numerical arrays for TensorFlow input
 except ImportError:  # pragma: no cover - handled at runtime.
     np = None
 
 try:
-    import tensorflow as tf  # pyright: ignore[reportMissingImports]
+    import tensorflow as tf  # Third-party: deep learning framework; pyright: ignore[reportMissingImports]
 except ImportError:  # pragma: no cover - handled at runtime.
     tf = None
 
-from scanner.ml_features import FEATURE_FIELDS
-from scanner.ml_features import FEATURE_VERSION
-from scanner.ml_features import vectorize_features
-from scanner.settings import ScannerSettings
+from scanner.ml_features import FEATURE_FIELDS  # Project-local: ordered feature names
+from scanner.ml_features import FEATURE_VERSION  # Project-local: feature schema version
+from scanner.ml_features import vectorize_features  # Project-local: feature dict -> numeric list
+from scanner.settings import ScannerSettings  # Project-local: scanner configuration
 
 
 class MLScanner:
+    """Wrapper for structured ML model loading, inference, and analytics."""
+
     def __init__(self, settings: ScannerSettings):
+        """Initialise with settings and empty model state."""
         self.settings = settings
         self._lock = threading.Lock()
         self._model: Any | None = None
@@ -44,12 +54,14 @@ class MLScanner:
         }
 
     def refresh(self) -> None:
+        """Force a model reload on the next inference call."""
         with self._lock:
             self._artifact_signature = None
             self._model = None
             self._metadata = {}
 
     def analytics(self) -> dict[str, Any]:
+        """Return runtime analytics and metadata about the loaded model."""
         self._ensure_loaded()
         with self._lock:
             predictions_total = int(self._analytics["predictions_total"])
@@ -77,6 +89,7 @@ class MLScanner:
             }
 
     def scan(self, features: dict[str, Any]) -> dict[str, Any]:
+        """Run inference on a feature dict and return a structured result."""
         if not self.settings.ml_enabled:
             return {
                 "status": "unknown",
@@ -144,12 +157,14 @@ class MLScanner:
             }
 
     def _feature_names(self) -> tuple[str, ...]:
+        """Resolve the ordered tuple of feature names to use for vectorisation."""
         feature_names = self._metadata.get("feature_names")
         if isinstance(feature_names, list) and feature_names:
             return tuple(str(value) for value in feature_names)
         return FEATURE_FIELDS
 
     def _artifact_state(self) -> tuple[float | None, float | None]:
+        """Return the current mtime of model and metadata files."""
         model_mtime = None
         metadata_mtime = None
         model_path = Path(self.settings.ml_model_path)
@@ -161,6 +176,7 @@ class MLScanner:
         return model_mtime, metadata_mtime
 
     def _ensure_loaded(self) -> None:
+        """Lazy-load the model and metadata if the on-disk artifacts have changed."""
         signature = self._artifact_state()
         with self._lock:
             if signature == self._artifact_signature:
@@ -196,6 +212,7 @@ class MLScanner:
                 self._model = None
 
     def _record_prediction(self, probability: float) -> None:
+        """Increment analytics counters for a successful prediction."""
         with self._lock:
             self._analytics["predictions_total"] += 1
             self._analytics["probability_sum"] += probability
@@ -206,11 +223,13 @@ class MLScanner:
             self._analytics["last_prediction_utc"] = datetime.now(timezone.utc).isoformat()
 
     def _record_unknown(self) -> None:
+        """Increment analytics counters for a failed or unavailable prediction."""
         with self._lock:
             self._analytics["unknown_total"] += 1
             self._analytics["last_prediction_utc"] = datetime.now(timezone.utc).isoformat()
 
     def _top_features(self, limit: int = 5) -> list[dict[str, Any]]:
+        """Return the most influential features for the current model."""
         metadata_features = self._metadata.get("feature_importance")
         if isinstance(metadata_features, list) and metadata_features:
             return [
@@ -241,6 +260,7 @@ class MLScanner:
 
 
 def _extract_probability(prediction: Any) -> float:
+    """Extract a scalar probability from various prediction shapes."""
     if np is not None:
         values = np.asarray(prediction).reshape(-1)
         if values.size == 1:

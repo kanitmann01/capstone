@@ -1,9 +1,19 @@
-import whois
-import datetime
-from scanner.normalization import NormalizedTarget
+"""WHOIS-based domain age analysis.
+
+Queries the WHOIS database for domain creation date and registrar,
+then scores risk based on domain youth (new domains are high risk).
+"""
+
+import whois  # Third-party: WHOIS client for domain registration lookups
+import datetime  # Standard library: date and time utilities
+from scanner.normalization import NormalizedTarget  # Project-local: canonical URL representation
+
 
 class DomainAgeScanner:
+    """Analyses domain age and registrar reputation."""
+
     def __init__(self, target: NormalizedTarget):
+        """Initialise with a normalised URL target."""
         self.target = target
         self.domain = target.host
 
@@ -35,6 +45,7 @@ class DomainAgeScanner:
         return bool(registrar)
 
     def run_checks(self) -> dict:
+        """Run WHOIS checks and return risk score."""
         if self.target.is_ip:
             return {
                 "status": "unknown",

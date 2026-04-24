@@ -1,14 +1,22 @@
 from __future__ import annotations
 
-import re
-from pathlib import Path
-from typing import Any
+"""
+FastText corpus serialization and deduplication.
+
+Converts page snapshots into supervised FastText training lines,
+removes duplicates by content hash, and writes corpus files.
+"""
+
+import re  # Standard library: regular expressions
+from pathlib import Path  # Standard library: filesystem path abstraction
+from typing import Any  # Standard library: generic type hints
 
 
 LABEL_PREFIX = "__label__"
 
 
 def clean_text(value: str) -> str:
+    """Strip HTML tags and collapse whitespace."""
     text = str(value or "")
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"\s+", " ", text)
@@ -16,12 +24,14 @@ def clean_text(value: str) -> str:
 
 
 def normalize_token(value: Any) -> str:
+    """Lower-case and replace non-alphanumeric characters with underscores."""
     text = clean_text(str(value or "")).lower()
     text = re.sub(r"[^a-z0-9]+", "_", text)
     return text.strip("_")
 
 
 def snapshot_text_key(snapshot: dict[str, Any]) -> str:
+    """Generate a deduplication key from visible text, title, or URL."""
     content = snapshot.get("content") or {}
     visible_text = clean_text(snapshot.get("visible_text") or content.get("visible_text") or "")
     title = clean_text(snapshot.get("page_title") or content.get("page_title") or "")
@@ -30,11 +40,13 @@ def snapshot_text_key(snapshot: dict[str, Any]) -> str:
 
 
 def corpus_dedup_key(snapshot: dict[str, Any], label: str) -> str:
+    """Combine label and text key into a unique corpus identifier."""
     normalized_label = normalize_token(label) or "unknown"
     return f"{normalized_label}:{snapshot_text_key(snapshot)}"
 
 
 def serialize_snapshot(snapshot: dict[str, Any]) -> str:
+    """Flatten a snapshot into a single clean text string for inference."""
     content = snapshot.get("content") or {}
     brand_candidates = list(snapshot.get("brand_candidates") or content.get("brand_candidates") or [])
     title = clean_text(snapshot.get("page_title") or content.get("page_title") or "")
@@ -63,6 +75,7 @@ def serialize_snapshot(snapshot: dict[str, Any]) -> str:
 
 
 def serialize_labeled_snapshot(snapshot: dict[str, Any], label: str) -> str:
+    """Format a snapshot as a supervised FastText line: __label__<class> <text>."""
     normalized_label = label.strip().lower()
     if normalized_label not in {"phishing", "clean"}:
         raise ValueError("label must be 'phishing' or 'clean'")
@@ -70,6 +83,7 @@ def serialize_labeled_snapshot(snapshot: dict[str, Any], label: str) -> str:
 
 
 def build_corpus_lines(rows: list[dict[str, Any]], *, dedupe_visible_text: bool = True) -> list[str]:
+    """Convert labeled rows into a list of FastText corpus lines."""
     lines = []
     seen: set[str] = set()
     for row in rows:
@@ -90,6 +104,7 @@ def build_corpus_lines(rows: list[dict[str, Any]], *, dedupe_visible_text: bool 
 
 
 def write_corpus_file(lines: list[str], output_path: str | Path) -> Path:
+    """Persist corpus lines to disk, creating parent directories if needed."""
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")

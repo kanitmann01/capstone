@@ -1,17 +1,30 @@
 from __future__ import annotations
 
-from typing import Any
+"""
+Page snapshot extraction orchestrator.
 
-from scanner.content import ContentScanner
-from scanner.normalization import normalize_input_url
-from scanner.settings import ScannerSettings
+Combines ``ContentScanner`` (HTML fetch + parse), host-feature checks,
+and brand-match summarisation into a single flat snapshot dict that
+feeds the rest of the pipeline.
+"""
 
-from pipeline.extraction.brand_match import summarize_brand_impersonation
-from pipeline.extraction.host_features import host_provider
-from pipeline.extraction.host_features import is_free_host
+from typing import Any  # Standard library: generic type hints
+
+from scanner.content import ContentScanner  # Project-local: HTML fetch and content analysis
+from scanner.normalization import normalize_input_url  # Project-local: URL canonicalisation
+from scanner.settings import ScannerSettings  # Project-local: scanner configuration
+
+from pipeline.extraction.brand_match import summarize_brand_impersonation  # Project-local: brand impersonation summary
+from pipeline.extraction.host_features import host_provider  # Project-local: host provider resolution
+from pipeline.extraction.host_features import is_free_host  # Project-local: free-host detection
 
 
 def extract_page_snapshot(raw_url: str, settings: ScannerSettings) -> dict[str, Any]:
+    """Fetch a page and return a comprehensive snapshot dict.
+
+    The snapshot includes raw HTML, visible text, form statistics,
+    brand candidates, host metadata, and a brand-impersonation summary.
+    """
     target = normalize_input_url(raw_url)
     scanner = ContentScanner(target, settings)
     content = scanner.run_checks()

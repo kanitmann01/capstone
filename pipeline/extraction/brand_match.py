@@ -1,16 +1,25 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
-from typing import Any
+"""
+Brand detection and impersonation summarisation.
 
-from scanner.brand_profiles import BrandProfile
-from scanner.brand_profiles import build_brand_lookup
-from scanner.brand_profiles import host_matches_brand
-from scanner.brand_profiles import load_brand_profiles
-from scanner.brand_profiles import normalize_brand_token
+Uses edit-distance, token matching, and official-domain checks to
+identify which brand (if any) a page is impersonating and to
+produce a structured summary of mismatch signals.
+"""
+
+from collections.abc import Iterable  # Standard library: abstract base classes
+from typing import Any  # Standard library: generic type hints
+
+from scanner.brand_profiles import BrandProfile  # Project-local: brand data class
+from scanner.brand_profiles import build_brand_lookup  # Project-local: token -> profile mapping
+from scanner.brand_profiles import host_matches_brand  # Project-local: official domain matching
+from scanner.brand_profiles import load_brand_profiles  # Project-local: JSON loader
+from scanner.brand_profiles import normalize_brand_token  # Project-local: token normalisation
 
 
 def edit_distance(a: str, b: str, max_distance: int | None = None) -> int:
+    """Compute Levenshtein distance between two strings after normalisation."""
     left = normalize_brand_token(a)
     right = normalize_brand_token(b)
     if left == right:
@@ -41,6 +50,7 @@ def edit_distance(a: str, b: str, max_distance: int | None = None) -> int:
 
 
 def brand_tokens() -> tuple[str, ...]:
+    """Return every unique normalised brand keyword across loaded profiles."""
     tokens = set()
     for profile in load_brand_profiles():
         tokens.update(profile.normalized_keywords())
@@ -57,6 +67,7 @@ def detect_brand_candidates(
     image_domains: Iterable[str] | None = None,
     form_action_domains: Iterable[str] | None = None,
 ) -> list[dict[str, Any]]:
+    """Score every brand profile against page content and return top candidates."""
     headings = list(headings or [])
     image_domains = list(image_domains or [])
     form_action_domains = list(form_action_domains or [])
@@ -122,6 +133,7 @@ def summarize_brand_impersonation(
     path: str,
     content_result: dict[str, Any],
 ) -> dict[str, Any]:
+    """Collate brand impersonation signals into a flat summary dict."""
     brand_candidates = list(content_result.get("brand_candidates") or [])
     detected_brand = content_result.get("detected_brand") or ""
     free_host_provider = content_result.get("host_provider") or ""

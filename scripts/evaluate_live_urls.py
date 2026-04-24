@@ -1,15 +1,23 @@
 from __future__ import annotations
 
-import argparse
-import csv
-from pathlib import Path
+"""
+CLI script: evaluate a held-out set of live URLs against the detector.
 
-from app.service import AppService
-from pipeline.evaluation.evaluate import evaluate_csv
-from pipeline.evaluation.evaluate import build_report_payload
+Reads a labeled CSV, runs each URL through ``AppService.scan_url()``,
+and writes scored results plus an accuracy/precision/recall summary.
+"""
+
+import argparse  # Standard library: command-line argument parsing
+import csv  # Standard library: CSV reading
+from pathlib import Path  # Standard library: filesystem path abstraction
+
+from app.service import AppService  # Project-local: core application service orchestrator
+from pipeline.evaluation.evaluate import evaluate_csv  # Project-local: CSV evaluation runner
+from pipeline.evaluation.evaluate import build_report_payload  # Project-local: report formatter
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Configure the CLI argument parser."""
     parser = argparse.ArgumentParser(description="Evaluate a held-out set of live URLs.")
     parser.add_argument("input_csv", help="Labeled CSV with url and is_phishing columns.")
     parser.add_argument("output_csv", help="Where to write the scored evaluation CSV.")
@@ -18,6 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Entry point: parse args, evaluate URLs, print report summary."""
     args = build_parser().parse_args()
     service = AppService()
     threshold = service.config.final_score_threshold if args.threshold is None else args.threshold

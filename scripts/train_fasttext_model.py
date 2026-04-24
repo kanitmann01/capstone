@@ -1,14 +1,23 @@
 from __future__ import annotations
 
-import argparse
-from pathlib import Path
+"""
+CLI script: train the FastText brand-login detector from a supervised corpus.
 
-from pipeline.modeling.fasttext_train import FastTextTrainingConfig
-from pipeline.modeling.fasttext_train import train_fasttext_model
-from pipeline.shared.config import CapstoneConfig
+Reads a corpus in FastText format, builds a training config from
+environment variables via ``CapstoneConfig``, and persists the model
+binary plus metadata sidecar.
+"""
+
+import argparse  # Standard library: command-line argument parsing
+from pathlib import Path  # Standard library: filesystem path abstraction
+
+from pipeline.modeling.fasttext_train import FastTextTrainingConfig  # Project-local: hyperparameter dataclass
+from pipeline.modeling.fasttext_train import train_fasttext_model  # Project-local: FastText trainer
+from pipeline.shared.config import CapstoneConfig  # Project-local: global capstone configuration
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Configure the CLI argument parser."""
     parser = argparse.ArgumentParser(description="Train the FastText brand-login detector.")
     parser.add_argument("corpus_path", help="Training corpus in FastText supervised format.")
     parser.add_argument(
@@ -25,6 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Entry point: parse args, train model, print summary."""
     args = build_parser().parse_args()
     config = CapstoneConfig.from_env()
     train_config = FastTextTrainingConfig(

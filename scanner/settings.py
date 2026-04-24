@@ -1,11 +1,22 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-import os
+"""
+Environment-driven configuration for scanner modules.
+
+``ScannerSettings`` encapsulates all runtime tunables: threat-feed URLs,
+API keys, cache directories, request timeouts, per-check score weights,
+and TensorFlow training defaults. Values are read from environment
+variables with sensible defaults.
+"""
+
+from dataclasses import dataclass  # Standard library: immutable data class decorator
+import os  # Standard library: environment variable access
 
 
 @dataclass(frozen=True)
 class ScannerSettings:
+    """Immutable container for scanner configuration."""
+
     openphish_enabled: bool = True
     openphish_url: str = (
         "https://raw.githubusercontent.com/openphish/public_feed/refs/heads/main/feed.txt"
@@ -51,6 +62,7 @@ class ScannerSettings:
 
     @staticmethod
     def from_env() -> "ScannerSettings":
+        """Load settings from environment variables, falling back to defaults."""
         return ScannerSettings(
             openphish_enabled=_bool_env("OPENPHISH_ENABLED", True),
             openphish_url=os.getenv(
@@ -102,6 +114,7 @@ class ScannerSettings:
 
 
 def _bool_env(name: str, default: bool) -> bool:
+    """Parse a boolean environment variable."""
     value = os.getenv(name)
     if value is None:
         return default
@@ -109,6 +122,7 @@ def _bool_env(name: str, default: bool) -> bool:
 
 
 def _int_env(name: str, default: int) -> int:
+    """Parse an integer environment variable."""
     value = os.getenv(name)
     if value is None:
         return default
@@ -119,6 +133,7 @@ def _int_env(name: str, default: int) -> int:
 
 
 def _float_env(name: str, default: float) -> float:
+    """Parse a float environment variable."""
     value = os.getenv(name)
     if value is None:
         return default
@@ -126,4 +141,3 @@ def _float_env(name: str, default: float) -> float:
         return float(value)
     except ValueError:
         return default
-

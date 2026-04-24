@@ -1,27 +1,39 @@
 from __future__ import annotations
 
-from typing import Any
-from typing import Callable
+"""
+Legacy scanner service combining individual check modules.
 
-from scanner.content import ContentScanner
-from scanner.domain_age import DomainAgeScanner
-from scanner.feed_ingest import ThreatFeedCache
-from scanner.heuristics import URLHeuristics
-from scanner.ml_features import extract_features
-from scanner.ml_model import MLScanner
-from scanner.normalization import normalize_input_url
-from scanner.settings import ScannerSettings
-from scanner.ssl_check import SSLValidator
-from scanner.threat_intel import ThreatIntelScanner
+``ScanService`` executes each detector (heuristics, content, SSL,
+domain age, threat intel, ML) independently and aggregates their
+outputs into a weighted risk score with contributor/unknown lists.
+"""
+
+from typing import Any  # Standard library: generic type hints
+from typing import Callable  # Standard library: function type annotations
+
+from scanner.content import ContentScanner  # Project-local: HTML fetch and content analysis
+from scanner.domain_age import DomainAgeScanner  # Project-local: WHOIS age checker
+from scanner.feed_ingest import ThreatFeedCache  # Project-local: threat-intel cache
+from scanner.heuristics import URLHeuristics  # Project-local: URL heuristic scanner
+from scanner.ml_features import extract_features  # Project-local: structured feature engineering
+from scanner.ml_model import MLScanner  # Project-local: structured ML inference
+from scanner.normalization import normalize_input_url  # Project-local: URL canonicalisation
+from scanner.settings import ScannerSettings  # Project-local: scanner configuration
+from scanner.ssl_check import SSLValidator  # Project-local: SSL certificate validator
+from scanner.threat_intel import ThreatIntelScanner  # Project-local: threat-intel lookup wrapper
 
 
 class ScanService:
+    """Combines all scanner modules into a unified scan workflow."""
+
     def __init__(self, settings: ScannerSettings, feed_cache: ThreatFeedCache):
+        """Initialise with settings, feed cache, and an ML scanner."""
         self.settings = settings
         self.feed_cache = feed_cache
         self.ml_scanner = MLScanner(settings)
 
     def scan_combined(self, raw_url: str) -> dict[str, Any]:
+        """Run a full combined scan without progress reporting."""
         return self._scan_combined(raw_url)
 
     def scan_combined_with_progress(
@@ -29,6 +41,7 @@ class ScanService:
         raw_url: str,
         progress_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> dict[str, Any]:
+        """Run a full combined scan with optional per-check progress callbacks."""
         return self._scan_combined(raw_url, progress_callback=progress_callback)
 
     def _scan_combined(
@@ -36,6 +49,7 @@ class ScanService:
         raw_url: str,
         progress_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> dict[str, Any]:
+        """Internal combined scan implementation."""
         target = normalize_input_url(raw_url)
         details = self._run_combined_checks(target, progress_callback=progress_callback)
         ml_result = self._run_ml_check(
@@ -58,21 +72,27 @@ class ScanService:
         }
 
     def scan_heuristics(self, raw_url: str) -> dict[str, Any]:
+        """Run URL heuristic checks only."""
         return URLHeuristics(normalize_input_url(raw_url)).run_checks()
 
     def scan_content(self, raw_url: str) -> dict[str, Any]:
+        """Run HTML content analysis only."""
         return ContentScanner(normalize_input_url(raw_url), self.settings).run_checks()
 
     def scan_ssl(self, raw_url: str) -> dict[str, Any]:
+        """Run SSL certificate validation only."""
         return SSLValidator(normalize_input_url(raw_url), self.settings).run_checks()
 
     def scan_whois(self, raw_url: str) -> dict[str, Any]:
+        """Run WHOIS domain-age lookup only."""
         return DomainAgeScanner(normalize_input_url(raw_url)).run_checks()
 
     def scan_threats(self, raw_url: str) -> dict[str, Any]:
+        """Run threat-intel feed lookup only."""
         return ThreatIntelScanner(normalize_input_url(raw_url), self.feed_cache).run_checks()
 
     def scan_ml(self, raw_url: str) -> dict[str, Any]:
+        """Run structured ML inference only (including feature extraction)."""
         target = normalize_input_url(raw_url)
         details = self._run_combined_checks(target)
         features = extract_features(target, details)
@@ -86,9 +106,11 @@ class ScanService:
         }
 
     def ml_overview(self) -> dict[str, Any]:
+        """Return analytics metadata for the structured ML model."""
         return self.ml_scanner.analytics()
 
     def refresh_feeds(self) -> dict[str, Any]:
+        """Trigger an immediate refresh of the threat-feed cache."""
         self.feed_cache.refresh_now()
         return {"status": "ok", "feed_freshness": self.feed_cache.metadata()}
 
@@ -97,6 +119,7 @@ class ScanService:
         target,
         progress_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> dict[str, dict[str, Any]]:
+        """Execute all non-ML checks and return their result dicts."""
         check_runners: tuple[tuple[str, Callable[[], dict[str, Any]]], ...] = (
             ("heuristics", lambda: URLHeuristics(target).run_checks()),
             ("content", lambda: ContentScanner(target, self.settings).run_checks()),
@@ -128,6 +151,7 @@ class ScanService:
         details: dict[str, dict[str, Any]],
         progress_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> dict[str, Any]:
+        """Extract features and run the structured ML model."""
         if progress_callback:
             progress_callback({"type": "check_started", "check": "ml"})
         features = extract_features(target, details)
@@ -144,6 +168,7 @@ class ScanService:
         return result
 
     def _weighted_score(self, details: dict[str, dict[str, Any]]) -> tuple[float, list[str], list[str]]:
+        """Aggregate individual check scores into a weighted composite score."""
         weights = {
             "heuristics": self.settings.weights_heuristics,
             "content": self.settings.weights_content,
@@ -180,6 +205,7 @@ class ScanService:
         target,
         details: dict[str, dict[str, Any]],
     ) -> dict[str, Any]:
+        """Extract brand impersonation signals from the content check result."""
         content = details.get("content") or {}
         candidates = list(content.get("brand_candidates") or [])
         detected_brand = content.get("detected_brand") or ""

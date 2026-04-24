@@ -1,42 +1,53 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-from datetime import datetime, timezone
-import csv
-import json
-from pathlib import Path
-from typing import Any
+"""
+Core application service orchestrating the hybrid phishing detection pipeline.
 
-from pipeline.evaluation.compare_models import confusion_counts
-from pipeline.evaluation.compare_models import metrics_from_counts
-from pipeline.evaluation.rules_baseline import score_rules
-from pipeline.extraction.html_parser import extract_page_snapshot
-from pipeline.modeling.fasttext_dataset import corpus_dedup_key
-from pipeline.modeling.fasttext_dataset import serialize_labeled_snapshot
-from pipeline.modeling.fasttext_dataset import serialize_snapshot
-from pipeline.modeling.fasttext_train import FastTextTrainingConfig
-from pipeline.modeling.fasttext_train import default_training_config
-from pipeline.modeling.fasttext_train import train_fasttext_model
-from pipeline.modeling.inference import FastTextDetector
-from pipeline.shared.config import CapstoneConfig
-from scanner.dataset_store import BrandLoginDatasetStore
-from scanner.dataset_store import SnapshotRecord
-from scanner.domain_age import DomainAgeScanner
-from scanner.feed_ingest import ThreatFeedCache
-from scanner.heuristics import URLHeuristics
-from scanner.ml_features import extract_features
-from scanner.ml_model import MLScanner
-from scanner.normalization import normalize_input_url
-from scanner.settings import ScannerSettings
-from scanner.ssl_check import SSLValidator
-from scanner.threat_intel import ThreatIntelScanner
+``AppService`` is the central coordinator consumed by ``app.api``. It drives the
+full scan lifecycle—page extraction, legacy checks, structured ML scoring,
+FastText inference, result persistence, and model training/evaluation workflows.
+"""
+
+from dataclasses import asdict  # Standard library: convert dataclasses to dictionaries
+from datetime import datetime, timezone  # Standard library: UTC-aware timestamps
+import csv  # Standard library: CSV reading for labeled training/evaluation data
+import json  # Standard library: JSON serialization for metadata and reports
+from pathlib import Path  # Standard library: filesystem path abstraction
+from typing import Any  # Standard library: generic type hints
+
+from pipeline.evaluation.compare_models import confusion_counts  # Project-local: confusion matrix counts
+from pipeline.evaluation.compare_models import metrics_from_counts  # Project-local: metrics from counts
+from pipeline.evaluation.rules_baseline import score_rules  # Project-local: rules-based risk scoring
+from pipeline.extraction.html_parser import extract_page_snapshot  # Project-local: fetch and parse remote page
+from pipeline.modeling.fasttext_dataset import corpus_dedup_key  # Project-local: deduplication key generator
+from pipeline.modeling.fasttext_dataset import serialize_labeled_snapshot  # Project-local: FastText labeled line formatter
+from pipeline.modeling.fasttext_dataset import serialize_snapshot  # Project-local: snapshot -> flat text
+from pipeline.modeling.fasttext_train import FastTextTrainingConfig  # Project-local: FastText hyperparameters
+from pipeline.modeling.fasttext_train import default_training_config  # Project-local: config factory
+from pipeline.modeling.fasttext_train import train_fasttext_model  # Project-local: FastText trainer
+from pipeline.modeling.inference import FastTextDetector  # Project-local: FastText inference wrapper
+from pipeline.shared.config import CapstoneConfig  # Project-local: global capstone configuration
+from scanner.dataset_store import BrandLoginDatasetStore  # Project-local: SQLite persistence
+from scanner.dataset_store import SnapshotRecord  # Project-local: immutable snapshot dataclass
+from scanner.domain_age import DomainAgeScanner  # Project-local: WHOIS age checker
+from scanner.feed_ingest import ThreatFeedCache  # Project-local: threat-intel cache
+from scanner.heuristics import URLHeuristics  # Project-local: URL heuristic scanner
+from scanner.ml_features import extract_features  # Project-local: structured feature engineering
+from scanner.ml_model import MLScanner  # Project-local: structured ML inference
+from scanner.normalization import normalize_input_url  # Project-local: URL canonicalisation
+from scanner.settings import ScannerSettings  # Project-local: scanner configuration
+from scanner.ssl_check import SSLValidator  # Project-local: SSL certificate validator
+from scanner.threat_intel import ThreatIntelScanner  # Project-local: threat-intel lookup wrapper
 
 
 PIPELINE_VERSION = "unified_pipeline_v1"
 
 
 class AppService:
+    """Central service coordinating scan, dataset, corpus, and training operations."""
+
     def __init__(self, config: CapstoneConfig | None = None):
+        """Initialise all subsystems from configuration."""
         self.config = config or CapstoneConfig.from_env()
         self.scanner_settings = ScannerSettings.from_env()
         self.dataset_store = BrandLoginDatasetStore(self.config.dataset_db_path)
@@ -46,6 +57,7 @@ class AppService:
         self.latest_evaluation_report: dict[str, Any] | None = None
 
     def scan_url(self, raw_url: str, *, persist: bool = True, source: str = "live_scan") -> dict[str, Any]:
+        """Perform a full phishing scan on a single URL."""
         snapshot = extract_page_snapshot(raw_url, self.scanner_settings)
         target = normalize_input_url(raw_url)
         rules = score_rules(snapshot)
@@ -128,6 +140,7 @@ class AppService:
         return result
 
     def scan_combined(self, raw_url: str, *, persist: bool = True) -> dict[str, Any]:
+        """Public wrapper around scan_url using the "api_scan" source label."""
         return self.scan_url(raw_url, persist=persist, source="api_scan")
 
     def _contributing_checks(
@@ -138,6 +151,7 @@ class AppService:
         legacy_checks: dict[str, dict[str, Any]],
         structured_ml: dict[str, Any],
     ) -> list[str]:
+        """Identify which checks contributed a positive risk signal."""
         checks: list[str] = []
         if snapshot.get("free_host"):
             checks.append("free_host")
@@ -165,6 +179,7 @@ class AppService:
         legacy_checks: dict[str, dict[str, Any]],
         structured_ml: dict[str, Any],
     ) -> list[str]:
+        """Identify which checks are unavailable or failed."""
         unknown: list[str] = []
         if not snapshot.get("content", {}).get("content_fetched", True):
             unknown.append("content")
@@ -178,6 +193,7 @@ class AppService:
         return list(dict.fromkeys(unknown))
 
     def _run_legacy_checks(self, target, snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        """Run all legacy individual scanners."""
         content = snapshot.get("content") or {}
         return {
             "heuristics": URLHeuristics(target).run_checks(),
@@ -188,6 +204,7 @@ class AppService:
         }
 
     def _run_structured_ml(self, target, legacy_checks: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        """Build structured features and run the secondary ML model."""
         try:
             features = extract_features(target, legacy_checks)
             return self.structured_ml.scan(features)
@@ -207,6 +224,7 @@ class AppService:
         legacy_checks: dict[str, dict[str, Any]],
         structured_ml: dict[str, Any],
     ) -> dict[str, Any]:
+        """Compute weighted composite score from all available components."""
         rules_score = float(rules.get("risk_score") or 0)
         fasttext_score = self._safe_prediction_score(fasttext_prediction)
         legacy_score, legacy_contributing, legacy_unknown = self._weighted_legacy_score(legacy_checks)
@@ -252,6 +270,7 @@ class AppService:
         fasttext_prediction: Any,
         structured_ml: dict[str, Any],
     ) -> dict[str, Any]:
+        """Translate composite scores into a final phishing/clean verdict."""
         signals = list(rules.get("reasons") or [])
         if fasttext_prediction is not None:
             signals.append(f"FastText score {scores['fasttext']:.2f}")
@@ -277,6 +296,7 @@ class AppService:
         fasttext_prediction: dict[str, Any],
         structured_ml: dict[str, Any],
     ) -> dict[str, dict[str, Any]]:
+        """Collate every individual scanner result into a unified checks map."""
         checks = dict(legacy_checks)
         checks["rules"] = rules
         checks["fasttext"] = fasttext_prediction
@@ -285,6 +305,7 @@ class AppService:
         return checks
 
     def _persist_scan(self, *, snapshot: dict[str, Any], result: dict[str, Any], source: str) -> int:
+        """Persist a scan snapshot and its result into the SQLite dataset store."""
         record = SnapshotRecord.create(
             url=snapshot.get("url") or snapshot.get("normalized_url") or "",
             normalized_url=snapshot.get("normalized_url") or snapshot.get("url") or "",
@@ -315,6 +336,7 @@ class AppService:
         return self.dataset_store.add_snapshot(record)
 
     def _fasttext_payload(self, fasttext_prediction: Any) -> dict[str, Any]:
+        """Convert a FastText prediction object into a plain serialisable dict."""
         if fasttext_prediction is None:
             return {
                 "status": "unknown",
@@ -326,11 +348,13 @@ class AppService:
         return {"status": "ok", **fasttext_prediction.as_dict()}
 
     def _safe_prediction_score(self, fasttext_prediction: Any) -> float | None:
+        """Safely extract the risk score from a FastText prediction object."""
         if fasttext_prediction is None:
             return None
         return float(getattr(fasttext_prediction, "score", 0.0) or 0.0)
 
     def _weighted_legacy_score(self, legacy_checks: dict[str, dict[str, Any]]) -> tuple[float, list[str], list[str]]:
+        """Compute a weighted aggregate score from legacy check results."""
         weights = {
             "heuristics": self.scanner_settings.weights_heuristics,
             "content": self.scanner_settings.weights_content,
@@ -358,6 +382,7 @@ class AppService:
         return numerator / denominator, contributing, unknown
 
     def _official_domain_override(self, snapshot: dict[str, Any]) -> str:
+        """Check whether the page is hosted on an official brand domain."""
         brand_summary = snapshot.get("brand_impersonation") or {}
         candidates = brand_summary.get("brand_candidates") or []
         for candidate in candidates:
@@ -366,6 +391,7 @@ class AppService:
         return ""
 
     def _feed_freshness(self) -> dict[str, Any]:
+        """Return metadata about the current threat-feed cache freshness."""
         metadata = self.feed_cache.metadata()
         return {
             "last_refresh_utc": metadata.get("last_refresh_utc"),
@@ -376,12 +402,15 @@ class AppService:
         }
 
     def dataset_summary(self) -> dict[str, Any]:
+        """Return aggregate statistics about the dataset store."""
         return self.dataset_store.summary()
 
     def dataset_recent(self, limit: int = 25) -> list[dict[str, Any]]:
+        """Return the most recent dataset rows."""
         return self.dataset_store.iter_recent(limit=limit)
 
     def export_fasttext_corpus_from_csv(self, input_csv: str | Path, output_path: str | Path) -> dict[str, Any]:
+        """Build a deduplicated FastText supervised corpus from a labeled CSV."""
         input_path = Path(input_csv)
         rows = self._read_labeled_rows(input_path)
         lines: list[str] = []
@@ -413,6 +442,7 @@ class AppService:
         run_dir: str | Path,
         activate_after_training: bool = True,
     ) -> dict[str, Any]:
+        """Train a FastText model from a labeled CSV and optionally activate it."""
         input_path = Path(input_csv)
         run_path = Path(run_dir)
         run_path.mkdir(parents=True, exist_ok=True)
@@ -476,6 +506,7 @@ class AppService:
         }
 
     def evaluate_csv(self, *, input_csv: str | Path, output_csv: str | Path, threshold: float | None = None) -> dict[str, Any]:
+        """Score every row in a CSV and produce an evaluation report."""
         from pipeline.evaluation.evaluate import evaluate_csv, build_report_payload
 
         def scorer(url: str, progress_callback=None):
@@ -493,6 +524,7 @@ class AppService:
         return report
 
     def model_overview(self) -> dict[str, Any]:
+        """Return metadata about the currently configured detection models."""
         available = self.detector.available()
         metadata = {}
         if self.config.fasttext_metadata_path.exists():
@@ -511,6 +543,7 @@ class AppService:
         }
 
     def _read_labeled_rows(self, input_path: Path) -> list[dict[str, Any]]:
+        """Read a CSV and return rows with url and is_phishing booleans."""
         with input_path.open("r", newline="", encoding="utf-8") as handle:
             reader = csv.DictReader(handle)
             rows = []
@@ -528,6 +561,7 @@ class AppService:
         return rows
 
     def _compute_label_counts(self, rows: list[dict[str, Any]]) -> dict[str, int]:
+        """Count phishing vs clean rows."""
         counts = {"phishing": 0, "clean": 0}
         for row in rows:
             counts[row["label"]] += 1
@@ -535,4 +569,5 @@ class AppService:
 
 
 def utc_now_iso() -> str:
+    """Return the current UTC timestamp as an ISO-8601 string."""
     return datetime.now(timezone.utc).isoformat()

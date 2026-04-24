@@ -1,18 +1,26 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-import re
-from pathlib import Path
+"""
+CLI script: generate a styled Word document from project Markdown sources.
 
-from docx import Document
-from docx.enum.section import WD_SECTION
-from docx.enum.style import WD_STYLE_TYPE
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml import OxmlElement
-from docx.oxml.ns import qn
-from docx.shared import Inches
-from docx.shared import Pt
-from docx.shared import RGBColor
+Reads the documentation pages under ``docs/``, converts headings, lists,
+inline code, and fenced code blocks into formatted DOCX elements, and
+writes ``docs/project-documentation.docx``.
+"""
+
+from datetime import datetime, timezone  # Standard library: UTC-aware timestamps
+import re  # Standard library: regular expressions
+from pathlib import Path  # Standard library: filesystem path abstraction
+
+from docx import Document  # Third-party: Word document creation
+from docx.enum.section import WD_SECTION  # Third-party: section break types
+from docx.enum.style import WD_STYLE_TYPE  # Third-party: style type enumeration
+from docx.enum.text import WD_ALIGN_PARAGRAPH  # Third-party: text alignment
+from docx.oxml import OxmlElement  # Third-party: low-level XML element builder
+from docx.oxml.ns import qn  # Third-party: XML namespace helper
+from docx.shared import Inches  # Third-party: imperial unit conversion
+from docx.shared import Pt  # Third-party: point unit conversion
+from docx.shared import RGBColor  # Third-party: colour values
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -46,6 +54,7 @@ LIST_RE = re.compile(r"^(\d+)\.\s+(.*)$")
 
 
 def add_field(paragraph, field_code: str) -> None:
+    """Insert a Word field (e.g., PAGE) into a paragraph."""
     run = paragraph.add_run()
     fld_char_begin = OxmlElement("w:fldChar")
     fld_char_begin.set(qn("w:fldCharType"), "begin")
@@ -71,12 +80,14 @@ def add_field(paragraph, field_code: str) -> None:
 
 
 def set_cell_shading(style, fill: str) -> None:
+    """Apply a background colour to a paragraph style."""
     shading = OxmlElement("w:shd")
     shading.set(qn("w:fill"), fill)
     style.element.get_or_add_pPr().append(shading)
 
 
 def configure_styles(document: Document) -> None:
+    """Set up document-wide font, colour, and spacing styles."""
     styles = document.styles
 
     normal = styles["Normal"]
@@ -130,6 +141,7 @@ def configure_styles(document: Document) -> None:
 
 
 def configure_page(document: Document) -> None:
+    """Configure page margins and footer page-number fields."""
     section = document.sections[0]
     section.top_margin = Inches(0.8)
     section.bottom_margin = Inches(0.75)
@@ -145,6 +157,7 @@ def configure_page(document: Document) -> None:
 
 
 def add_cover(document: Document) -> None:
+    """Render the title page with project name and generation timestamp."""
     title = document.add_paragraph(style="Title")
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     title.add_run("Capstone Project Documentation")
@@ -174,6 +187,7 @@ def add_cover(document: Document) -> None:
 
 
 def add_toc(document: Document) -> None:
+    """Insert an auto-generated Table of Contents field."""
     heading = document.add_paragraph(style="Heading 1")
     heading.add_run("Table of Contents")
 
@@ -187,6 +201,7 @@ def add_toc(document: Document) -> None:
 
 
 def add_inline_runs(paragraph, text: str) -> None:
+    """Split inline backtick code and add styled runs to a paragraph."""
     parts = re.split(r"(`[^`]+`)", text)
     for part in parts:
         if not part:
@@ -199,6 +214,7 @@ def add_inline_runs(paragraph, text: str) -> None:
 
 
 def emit_paragraph(document: Document, text: str) -> None:
+    """Route a single Markdown line into the appropriate DOCX paragraph style."""
     stripped = text.strip()
     if not stripped:
         document.add_paragraph("")
@@ -235,6 +251,7 @@ def emit_paragraph(document: Document, text: str) -> None:
 
 
 def add_markdown_file(document: Document, path: Path) -> None:
+    """Parse a Markdown file and emit corresponding DOCX elements."""
     lines = path.read_text(encoding="utf-8").splitlines()
     in_code_block = False
     code_buffer: list[str] = []
@@ -264,6 +281,7 @@ def add_markdown_file(document: Document, path: Path) -> None:
 
 
 def build_document() -> Path:
+    """Assemble the full DOCX from all Markdown sources."""
     document = Document()
     configure_styles(document)
     configure_page(document)
@@ -281,6 +299,7 @@ def build_document() -> Path:
 
 
 def main() -> int:
+    """Entry point: build and save the project documentation Word file."""
     output = build_document()
     print(f"Wrote {output}")
     return 0

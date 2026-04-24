@@ -1,22 +1,32 @@
 from __future__ import annotations
 
-import csv
-from collections import Counter
-from dataclasses import dataclass
-from datetime import datetime, timezone
-import re
-from pathlib import Path
-import sys
-from typing import Any
-from urllib.parse import urlparse
+"""
+CLI script: generate an Exploratory Data Analysis (EDA) Markdown report.
 
+Reads ``old-data/baseline.csv`` and ``old-data/baseline_scored.csv``,
+computes class balance, brand signals, free-host counts, token
+frequencies, and evaluation metrics, then writes a formatted Markdown
+report to ``old-data/14-brand-login-eda.md``.
+"""
+
+import csv  # Standard library: CSV reading
+from collections import Counter  # Standard library: frequency counting
+from dataclasses import dataclass  # Standard library: immutable data class decorator
+from datetime import datetime, timezone  # Standard library: UTC-aware timestamps
+import re  # Standard library: regular expressions
+from pathlib import Path  # Standard library: filesystem path abstraction
+import sys  # Standard library: system path manipulation
+from typing import Any  # Standard library: generic type hints
+from urllib.parse import urlparse  # Standard library: URL parsing
+
+# Ensure project root is on sys.path so scanner imports resolve when run standalone
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scanner.brand_profiles import guess_host_provider
-from scanner.brand_profiles import load_brand_profiles
-from scanner.brand_profiles import normalize_brand_token
+from scanner.brand_profiles import guess_host_provider  # Project-local: free-host detection
+from scanner.brand_profiles import load_brand_profiles  # Project-local: JSON loader
+from scanner.brand_profiles import normalize_brand_token  # Project-local: token normalisation
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -42,6 +52,8 @@ SUSPICIOUS_TOKENS = (
 
 @dataclass(frozen=True)
 class EDAStats:
+    """Aggregate statistics computed from the baseline CSV."""
+
     total_rows: int
     phishing_rows: int
     legitimate_rows: int
@@ -54,11 +66,13 @@ class EDAStats:
 
 
 def read_rows(path: Path) -> list[dict[str, str]]:
+    """Read a CSV file into a list of string-keyed row dicts."""
     with path.open("r", newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle))
 
 
 def parse_bool(value: Any) -> bool | None:
+    """Parse a flexible truthy/falsy value into a boolean or None."""
     normalized = str(value or "").strip().lower()
     if normalized in {"1", "true", "t", "yes", "y"}:
         return True
@@ -68,6 +82,7 @@ def parse_bool(value: Any) -> bool | None:
 
 
 def normalize_host(value: str) -> str:
+    """Extract and clean a hostname from a raw URL or host string."""
     candidate = str(value or "").strip().lower()
     if not candidate:
         return ""
@@ -77,11 +92,13 @@ def normalize_host(value: str) -> str:
 
 
 def extract_path(url: str) -> str:
+    """Extract the lower-case path and query from a URL."""
     parsed = urlparse(url if "://" in url else f"http://{url}")
     return f"{parsed.path} {parsed.query}".lower()
 
 
 def token_counts(rows: list[dict[str, str]]) -> Counter[str]:
+    """Count occurrences of suspicious tokens across URL and hostname fields."""
     counts: Counter[str] = Counter()
     for row in rows:
         corpus = f"{row.get('url', '')} {row.get('hostname', '')}".lower()
@@ -92,6 +109,7 @@ def token_counts(rows: list[dict[str, str]]) -> Counter[str]:
 
 
 def brand_counts(rows: list[dict[str, str]]) -> Counter[str]:
+    """Count how many rows mention each loaded brand profile."""
     profiles = load_brand_profiles()
     counts: Counter[str] = Counter()
     for row in rows:
@@ -104,6 +122,7 @@ def brand_counts(rows: list[dict[str, str]]) -> Counter[str]:
 
 
 def free_host_counts(rows: list[dict[str, str]]) -> Counter[str]:
+    """Count rows hosted on known free-hosting providers."""
     counts: Counter[str] = Counter()
     for row in rows:
         host = normalize_host(row.get("hostname") or row.get("url") or "")
@@ -114,6 +133,7 @@ def free_host_counts(rows: list[dict[str, str]]) -> Counter[str]:
 
 
 def host_suffix_counts(rows: list[dict[str, str]]) -> Counter[str]:
+    """Count occurrences of each top-level domain suffix."""
     counts: Counter[str] = Counter()
     for row in rows:
         host = normalize_host(row.get("hostname") or row.get("url") or "")
@@ -126,6 +146,7 @@ def host_suffix_counts(rows: list[dict[str, str]]) -> Counter[str]:
 
 
 def summarize_baseline(rows: list[dict[str, str]]) -> EDAStats:
+    """Compute aggregate EDA statistics from baseline rows."""
     total_rows = len(rows)
     phishing_rows = 0
     legitimate_rows = 0
@@ -155,6 +176,7 @@ def summarize_baseline(rows: list[dict[str, str]]) -> EDAStats:
 
 
 def count_missing(rows: list[dict[str, str]], columns: list[str]) -> dict[str, float]:
+    """Calculate missing-value ratios for specified columns."""
     if not rows:
         return {column: 0.0 for column in columns}
     result: dict[str, float] = {}
@@ -166,6 +188,7 @@ def count_missing(rows: list[dict[str, str]], columns: list[str]) -> dict[str, f
 
 
 def evaluate_scored(rows: list[dict[str, str]]) -> dict[str, Any]:
+    """Compute confusion matrix and metrics from scored CSV rows."""
     scored_rows: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
     tp = tn = fp = fn = 0
@@ -228,6 +251,7 @@ def evaluate_scored(rows: list[dict[str, str]]) -> dict[str, Any]:
 
 
 def markdown_table(rows: list[tuple[str, Any]], headers: tuple[str, str] = ("Metric", "Value")) -> str:
+    """Format key-value pairs as a Markdown table."""
     lines = [f"| {headers[0]} | {headers[1]} |", "|---|---|"]
     for key, value in rows:
         lines.append(f"| {key} | {value} |")
@@ -235,14 +259,17 @@ def markdown_table(rows: list[tuple[str, Any]], headers: tuple[str, str] = ("Met
 
 
 def ranked_rows(counter: Counter[str], limit: int = 8) -> list[tuple[str, int]]:
+    """Return the top-N items from a Counter."""
     return counter.most_common(limit)
 
 
 def format_list(items: list[str]) -> str:
+    """Format a list of strings as a Markdown bullet list."""
     return "\n".join(f"- {item}" for item in items) if items else "- None"
 
 
 def format_example_rows(rows: list[dict[str, Any]]) -> str:
+    """Format scored example rows as Markdown bullets with URL, score, and host."""
     if not rows:
         return "- None"
     lines = []
@@ -254,6 +281,7 @@ def format_example_rows(rows: list[dict[str, Any]]) -> str:
 
 
 def build_report(baseline_stats: EDAStats, scored_stats: dict[str, Any], baseline_rows: list[dict[str, str]], scored_rows: list[dict[str, str]]) -> str:
+    """Assemble the complete Markdown EDA report from computed statistics."""
     missing_baseline = count_missing(baseline_rows, ["url", "is_phishing", "hostname"])
     missing_scored = count_missing(scored_rows, ["url", "is_phishing", "hostname", "risk_score", "predicted_is_phishing", "api_error"])
     brand_lines = [f"{brand} ({count})" for brand, count in ranked_rows(baseline_stats.brand_counts, 8)]
@@ -342,6 +370,7 @@ Scored CSV:
 
 
 def main() -> int:
+    """Entry point: read CSVs, compute stats, write Markdown report."""
     baseline_rows = read_rows(BASELINE_CSV)
     scored_rows = read_rows(SCORED_CSV)
     baseline_stats = summarize_baseline(baseline_rows)

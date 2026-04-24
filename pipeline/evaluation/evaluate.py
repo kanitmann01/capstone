@@ -1,10 +1,18 @@
 from __future__ import annotations
 
-import csv
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
-from typing import Callable
+"""
+CSV-based evaluation runner for the detection pipeline.
+
+Reads a labeled CSV, invokes a scorer function for each URL, writes
+enriched results to disk, and computes confusion matrices, accuracy,
+precision, recall, and a threshold sweep.
+"""
+
+import csv  # Standard library: CSV reading and writing
+from dataclasses import dataclass, field  # Standard library: lightweight data structures
+from pathlib import Path  # Standard library: filesystem path abstraction
+from typing import Any  # Standard library: generic type hints
+from typing import Callable  # Standard library: function type annotations
 
 
 ProgressCallback = Callable[[dict[str, Any]], None]
@@ -13,6 +21,8 @@ ScoreFunction = Callable[[str, ProgressCallback | None], dict[str, Any]]
 
 @dataclass
 class EvaluationRow:
+    """A single row result from an evaluation run."""
+
     index: int
     url: str
     actual_is_phishing: bool | None
@@ -28,6 +38,8 @@ class EvaluationRow:
 
 @dataclass
 class EvaluationResult:
+    """Aggregated results across all evaluation rows."""
+
     total_rows: int
     scored_rows: int
     error_rows: int
@@ -39,27 +51,32 @@ class EvaluationResult:
 
     @property
     def accuracy(self) -> float:
+        """Return overall accuracy."""
         total = self.tp + self.tn + self.fp + self.fn
         return (self.tp + self.tn) / total if total else 0.0
 
     @property
     def precision(self) -> float:
+        """Return precision (TP / (TP + FP))."""
         denom = self.tp + self.fp
         return self.tp / denom if denom else 0.0
 
     @property
     def recall(self) -> float:
+        """Return recall (TP / (TP + FN))."""
         denom = self.tp + self.fn
         return self.tp / denom if denom else 0.0
 
     @property
     def f1(self) -> float:
+        """Return the F1 score (harmonic mean of precision and recall)."""
         precision = self.precision
         recall = self.recall
         return (2 * precision * recall / (precision + recall)) if precision + recall else 0.0
 
 
 def parse_label(value: Any) -> bool:
+    """Parse a flexible truthy/falsy label into a boolean."""
     normalized = str(value).strip().lower()
     if normalized in {"1", "true", "t", "yes", "y", "phishing"}:
         return True
@@ -76,6 +93,7 @@ def evaluate_csv(
     threshold: float = 30.0,
     progress_callback: ProgressCallback | None = None,
 ) -> EvaluationResult:
+    """Score every row in a labeled CSV and write enriched results to disk."""
     input_path = Path(input_csv)
     output_path = Path(output_csv)
     with input_path.open("r", newline="", encoding="utf-8") as handle:
@@ -214,6 +232,7 @@ def evaluate_csv(
 
 
 def build_report_payload(result: EvaluationResult) -> dict[str, Any]:
+    """Build a human-readable report dict from an EvaluationResult."""
     false_positives = [
         {
             "url": row.url,
@@ -262,6 +281,7 @@ def build_threshold_sweep_payload(
     result: EvaluationResult,
     thresholds: list[float] | None = None,
 ) -> list[dict[str, Any]]:
+    """Compute metrics across a range of decision thresholds."""
     sweep_thresholds = thresholds or [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90]
     rows = [row for row in result.rows if row.risk_score is not None and row.actual_is_phishing is not None]
     sweep: list[dict[str, Any]] = []
