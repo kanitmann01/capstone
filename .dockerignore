@@ -1,0 +1,23 @@
+.git
+.gitignore
+.venv
+.pytest_cache
+.cursor
+.vscode
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.cache/
+runs/
+agent-transcripts/
+terminals/
+
+# Local/editor/system artifacts
+.DS_Store
+Thumbs.db
+
+# Keep large generated docs/data out of build context by default
+docs/project-documentation.docx

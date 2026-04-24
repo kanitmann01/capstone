@@ -200,3 +200,60 @@ The capstone is designed as a supervised classification project with an explaina
 - review false positives and false negatives as part of the final analysis
 
 The strongest story for presentation is not just "the app catches phishing." It is "the model learns which page structures, text patterns, and hosting clues distinguish fake brand login pages from legitimate ones."
+
+## Docker (API + scripts + tests)
+
+This repo now supports a workflow-first Docker setup so you can run the full capstone (web app, training, evaluation, and reporting) from one reproducible image.
+
+### 1) Prepare env file
+
+```bash
+cp .env.docker.example .env.docker
+```
+
+On Windows PowerShell:
+
+```powershell
+Copy-Item .env.docker.example .env.docker
+```
+
+Update `.env.docker` if you need VT/PhishTank credentials or custom paths.
+
+### 2) Build and run the API/UI
+
+```bash
+docker compose up --build app
+```
+
+Open:
+- Web UI: `http://127.0.0.1:8000/`
+- Docs: `http://127.0.0.1:8000/docs`
+
+### 3) Run script workflows in Docker
+
+Use the `job` service to run one-off commands with the same project image:
+
+```bash
+docker compose run --rm job python scripts/build_fasttext_corpus.py phishing_features_extracted_6_features.csv
+docker compose run --rm job python scripts/train_fasttext_model.py data/processed/fasttext_corpus.txt
+docker compose run --rm job python scripts/run_experiments.py phishing_features_extracted_6_features.csv .cache/evaluations/scored.csv
+docker compose run --rm job python scripts/generate_ml_dataset.py phishing_features_extracted_6_features.csv .cache/evaluations/ml_dataset.csv
+docker compose run --rm job python scripts/train_ml_model.py phishing_features_extracted_6_features.csv
+docker compose run --rm job python scripts/generate_project_documentation.py
+docker compose run --rm job pytest
+```
+
+For baseline API-client evaluation (`evaluate_baseline.py`), keep `app` running and use:
+
+```bash
+docker compose run --rm job python evaluate_baseline.py phishing_features_extracted_6_features.csv .cache/evaluations/baseline_output.csv --endpoint http://app:8000/scan/combined
+```
+
+### 4) Persistent state and outputs
+
+`compose.yaml` mounts these directories so artifacts survive container restarts:
+- `.cache/` (SQLite, threat-intel cache, model artifacts, evaluation outputs)
+- `data/`
+- `models/`
+- `docs/`
+- `old-data/`

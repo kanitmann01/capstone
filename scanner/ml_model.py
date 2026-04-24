@@ -23,15 +23,14 @@ try:
 except ImportError:  # pragma: no cover - handled at runtime.
     np = None
 
-try:
-    import tensorflow as tf  # Third-party: deep learning framework; pyright: ignore[reportMissingImports]
-except ImportError:  # pragma: no cover - handled at runtime.
-    tf = None
-
 from scanner.ml_features import FEATURE_FIELDS  # Project-local: ordered feature names
 from scanner.ml_features import FEATURE_VERSION  # Project-local: feature schema version
 from scanner.ml_features import vectorize_features  # Project-local: feature dict -> numeric list
 from scanner.settings import ScannerSettings  # Project-local: scanner configuration
+
+
+_TF_MODULE: Any | None = None
+_TF_IMPORT_ATTEMPTED = False
 
 
 class MLScanner:
@@ -121,7 +120,7 @@ class MLScanner:
             vector = [vectorize_features(features, feature_names)]
             if hasattr(self._model, "predict_proba"):
                 probability = float(self._model.predict_proba(vector)[0][1])
-            elif tf is not None and isinstance(self._model, tf.keras.Model):
+            elif _is_tensorflow_model(self._model):
                 if np is None:
                     raise RuntimeError("numpy_not_installed")
                 prediction = self._model.predict(np.asarray(vector, dtype="float32"), verbose=0)
@@ -202,11 +201,12 @@ class MLScanner:
                         return
                     self._model = joblib.load(model_path)
                 else:
-                    if tf is None:
+                    tf_module = _load_tensorflow()
+                    if tf_module is None:
                         self._metadata["load_error"] = "tensorflow_not_installed"
                         self._model = None
                         return
-                    self._model = tf.keras.models.load_model(model_path, compile=False)
+                    self._model = tf_module.keras.models.load_model(model_path, compile=False)
             except Exception as exc:
                 self._metadata["load_error"] = str(exc)
                 self._model = None
@@ -257,6 +257,27 @@ class MLScanner:
             if float(importance) > 0
         ]
         return top[:limit]
+
+
+def _load_tensorflow() -> Any | None:
+    """Import TensorFlow only when a TensorFlow artifact is actually needed."""
+    global _TF_IMPORT_ATTEMPTED, _TF_MODULE
+    if _TF_IMPORT_ATTEMPTED:
+        return _TF_MODULE
+    _TF_IMPORT_ATTEMPTED = True
+    try:
+        import tensorflow as tf_module  # Third-party: deep learning framework; pyright: ignore[reportMissingImports]
+    except ImportError:  # pragma: no cover - handled at runtime.
+        _TF_MODULE = None
+    else:
+        _TF_MODULE = tf_module
+    return _TF_MODULE
+
+
+def _is_tensorflow_model(model: Any) -> bool:
+    """Return whether the loaded model is a TensorFlow/Keras model."""
+    tf_module = _TF_MODULE
+    return tf_module is not None and isinstance(model, tf_module.keras.Model)
 
 
 def _extract_probability(prediction: Any) -> float:
