@@ -19,4 +19,5 @@ python-Levenshtein
 tldextract
 tensorboard
 tensorflow
+matplotlib
 python-docx

@@ -7,14 +7,19 @@ def test_valid_certificate_does_not_get_issuer_penalty(monkeypatch):
     target = normalize_input_url("https://example.com")
     scanner = SSLValidator(target, ScannerSettings())
     cert = {
-        "issuer": ((("commonName", "Some Trusted CA"),),),
-        "subject": ((("commonName", "example.com"),),),
-        "notAfter": "Jan 01 00:00:00 2099 GMT",
+        "connection": {"tls_version": "TLS 1.3"},
+        "verification": {
+            "chain_verified": True,
+            "hostname_matches": True,
+            "subject_equals_issuer": False,
+            "self_signature_verifies": False,
+            "weak_crypto": False,
+            "validity_risk": False,
+            "incomplete_chain": False,
+        },
     }
 
     monkeypatch.setattr(scanner, "get_certificate_info", lambda: cert)
-    monkeypatch.setattr(scanner, "check_validity", lambda c: True)
-    monkeypatch.setattr(scanner, "check_protocol_version", lambda: "TLSv1.3")
 
     result = scanner.run_checks()
     assert result["status"] == "ok"

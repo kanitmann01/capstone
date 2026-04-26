@@ -3,7 +3,7 @@ from __future__ import annotations
 """
 URL parsing and canonicalisation utilities.
 
-Provides ``NormalizedTarget``—an immutable dataclass that represents a
+Provides ``NormalizedTarget``-an immutable dataclass that represents a
 canonical URL with sorted query parameters, normalised host, and explicit
 scheme. Also includes helpers for feed-value normalisation.
 """

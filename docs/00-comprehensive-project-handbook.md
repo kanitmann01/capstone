@@ -31,7 +31,7 @@ Dense, single-source reference for the Capstone phishing / fake brand-login dete
 | Entry | Module | When to use |
 | --- | --- | --- |
 | **Primary (documented in README)** | `uvicorn app.api:app` | Current capstone: FastText-first hybrid, dataset pages, `/train/fasttext`, `/evaluate` |
-| **Legacy / alternate** | `uvicorn main:app` or `python main.py` | Older ML Lab + TensorFlow-centric flows (`main.py`); still in tree for continuity—do not assume parity with `app/api.py` without diffing routes |
+| **Legacy / alternate** | `uvicorn main:app` or `python main.py` | Older ML Lab + TensorFlow-centric flows (`main.py`); still in tree for continuity-do not assume parity with `app/api.py` without diffing routes |
 
 This handbook treats **`app/api.py` + `app/service.py`** as the authoritative HTTP surface unless you explicitly run `main.py`.
 
@@ -102,7 +102,7 @@ Additive, capped at 100: login form (+10), password fields (+ up to 20), free ho
 ### 7.4 Verdict threshold
 
 - `FINAL_SCORE_THRESHOLD` (default **30.0**): `final_score >= threshold` → `verdict.label = "phishing"`, else `"clean"`.
-- FastText **model** threshold (`FASTTEXT_THRESHOLD`, default 0.5 on probability) affects label inside `FastTextDetector` usage indirectly via `score = probability * 100` only if you add separate decisioning—current hybrid uses raw score contribution, not a second threshold gate.
+- FastText **model** threshold (`FASTTEXT_THRESHOLD`, default 0.5 on probability) affects label inside `FastTextDetector` usage indirectly via `score = probability * 100` only if you add separate decisioning-current hybrid uses raw score contribution, not a second threshold gate.
 
 ## 8. Feature and model tracks
 
@@ -112,7 +112,7 @@ Additive, capped at 100: login form (+10), password fields (+ up to 20), free ho
 | **Structured ML** | `.cache/ml-artifacts/active_model.keras` (+ JSON metadata) | Dense NN on `FEATURE_FIELDS` from `scanner/ml_features.py` (`FEATURE_VERSION = ml_features_v2`) |
 | **Rules** | Code in `rules_baseline.py` | Interpretable baseline, always available if snapshot exists |
 
-**Offline dataset generation**: `scripts/generate_ml_dataset.py` drives `scanner/ml_training.generate_feature_dataset`, which calls `ScanService.scan_combined_with_progress` per row—useful for building CSVs of `FEATURE_FIELDS` + labels (heavy network cost).
+**Offline dataset generation**: `scripts/generate_ml_dataset.py` drives `scanner/ml_training.generate_feature_dataset`, which calls `ScanService.scan_combined_with_progress` per row-useful for building CSVs of `FEATURE_FIELDS` + labels (heavy network cost).
 
 ## 9. Page snapshot and brand impersonation
 
@@ -132,7 +132,7 @@ Raw HTML is stored on the scanner instance during fetch (`scanner/content.py`); 
 
 - **OpenPhish** plain-text feed (`OPENPHISH_URL`).
 - **PhishTank** JSON (`PHISHTANK_DATA_URL`, optional `PHISHTANK_APP_KEY` if URL template requires it).
-- **VT-style gzip snapshots** from `VT_BASE_URL` + `VT_POS_FILE` / `VT_NEG_FILE` (filenames required—no auto-discovery).
+- **VT-style gzip snapshots** from `VT_BASE_URL` + `VT_POS_FILE` / `VT_NEG_FILE` (filenames required-no auto-discovery).
 
 **Semantics** (`feed_ingest.lookup`): positive hit → risk 100; negative-only hit → risk 5; no hit → 0. Negatives are **context**, not allowlisting.
 
@@ -154,22 +154,22 @@ Base URL assumed: `http://127.0.0.1:8000`. OpenAPI: `/docs`.
 
 | Method | Path | Body / params | Response summary |
 | --- | --- | --- | --- |
-| GET | `/` | — | HTML scan demo (`templates/index.html`) |
-| GET | `/dataset` | — | Dataset & analysis page |
-| GET | `/evaluate` | — | Alias → dataset page |
-| GET | `/results` | — | Results / model overview page |
-| GET | `/ml` | — | Alias → results page |
+| GET | `/` | - | HTML scan demo (`templates/index.html`) |
+| GET | `/dataset` | - | Dataset & analysis page |
+| GET | `/evaluate` | - | Alias → dataset page |
+| GET | `/results` | - | Results / model overview page |
+| GET | `/ml` | - | Alias → results page |
 | POST | `/scan/combined` | `URLRequest`: `url`, `persist` (default true) | `ScanResponse`: hybrid score, verdict, rules, fasttext, checks, contributing/unknown, artifacts |
-| GET | `/dataset/summary` | — | JSON summary from SQLite |
+| GET | `/dataset/summary` | - | JSON summary from SQLite |
 | GET | `/dataset/recent` | `limit` (default 25) | Recent snapshot rows |
-| GET | `/models/overview` | — | FastText availability, metadata path, thresholds, structured ML analytics |
+| GET | `/models/overview` | - | FastText availability, metadata path, thresholds, structured ML analytics |
 | POST | `/evaluate` | `EvaluationJobRequest`: `filename`, `csv_content`, `threshold` | Report JSON + `download_url` for scored CSV |
 | GET | `/evaluate/download` | `file` query: basename only, under `evaluation_dir/ad_hoc`, `.csv` only | File download |
 | POST | `/train/fasttext` | `FastTextTrainingRequest`: `filename`, `csv_content`, `activate_after_training` | Training summary + artifact paths |
 
 **CSV expectations** for training/evaluation helpers: rows must include **`url`** and **`is_phishing`** (truthy: `1,true,yes,...`; falsy otherwise) per `AppService._read_labeled_rows`.
 
-**Note**: Older docs listing `/scan/content`, `/feeds/refresh`, etc., describe the **legacy `main.py` / `scanner/service.py`** style API—verify before teaching or testing against `app.api:app`.
+**Note**: Older docs listing `/scan/content`, `/feeds/refresh`, etc., describe the **legacy `main.py` / `scanner/service.py`** style API-verify before teaching or testing against `app.api:app`.
 
 ## 13. Web UI
 
@@ -230,8 +230,8 @@ Run `pytest` from repo root. Notable suites: `tests/test_api.py` (app routes), `
 
 ## 18. Security, privacy, and abuse
 
-- Scanning **arbitrary user-supplied URLs** triggers outbound HTTP/TLS/WHOIS/threat-feed traffic—operate behind appropriate policy, logging, and rate limits for production.
-- Persisted SQLite rows contain **raw HTML** and may include PII from target pages—protect `.cache/` and backups accordingly.
+- Scanning **arbitrary user-supplied URLs** triggers outbound HTTP/TLS/WHOIS/threat-feed traffic-operate behind appropriate policy, logging, and rate limits for production.
+- Persisted SQLite rows contain **raw HTML** and may include PII from target pages-protect `.cache/` and backups accordingly.
 - Threat feeds are **third-party**; integrity depends on HTTPS and operator configuration of snapshot names.
 - `/evaluate/download` accepts only a safe basename (`file=`) and resolves it under `evaluation_dir/ad_hoc` to avoid path traversal.
 

@@ -2,49 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{{ title }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css?v=20260424polish1">
+  <link rel="stylesheet" href="/static/styles.css?v=20260426navfix1">
   {% block head_extra %}{% endblock %}
 </head>
 <body class="{% block body_class %}page-shell{% endblock %}">
   <div class="app-shell">
-    <aside class="app-sidebar" aria-label="Primary sidebar">
-      <div class="sidebar-brand">
+    <aside class="app-sidebar" aria-label="Brand Guard">
+      <a class="sidebar-brand sidebar-brand-link" href="/" aria-label="Brand Guard home"{% if active_page == 'scan' %} aria-current="page"{% endif %}>
         <p class="sidebar-wordmark">Brand Guard</p>
         <p class="sidebar-subtitle">Institutional Authority</p>
-      </div>
-      <nav class="sidebar-nav" aria-label="Main">
-        <a class="sidebar-link" href="/">
-          <span class="sidebar-link-dot" aria-hidden="true"></span>
-          <span>Overview</span>
-        </a>
-        <a class="sidebar-link{% if active_page == 'scan' %} is-active{% endif %}" href="/">
-          <span class="sidebar-link-dot" aria-hidden="true"></span>
-          <span>Analysis</span>
-        </a>
-        <a class="sidebar-link{% if active_page == 'dataset' %} is-active{% endif %}" href="/dataset">
-          <span class="sidebar-link-dot" aria-hidden="true"></span>
-          <span>Datasets</span>
-        </a>
-        <a class="sidebar-link{% if active_page == 'results' %} is-active{% endif %}" href="/results">
-          <span class="sidebar-link-dot" aria-hidden="true"></span>
-          <span>Historical Logs</span>
-        </a>
-      </nav>
-      <div class="sidebar-footer">
-        <button id="sidebar-new-scan" class="sidebar-primary-btn" type="button">New Scan</button>
-        <a class="sidebar-muted-link" href="/dataset">Help Center</a>
-        <a class="sidebar-muted-link" href="/results">System Status</a>
-      </div>
+      </a>
     </aside>
     <div class="app-main">
       <header class="app-topbar">
         <div class="topbar-left">
-          <p class="topbar-wordmark">Fake Brand Login Detector</p>
+          <p class="topbar-wordmark">Brand Guard</p>
           <nav class="topnav" aria-label="Primary">
             {% for item in nav_items %}
             <a class="nav-link{% if active_page == item.id %} is-active{% endif %}" href="{{ item.href }}">{{ item.label }}</a>
@@ -52,11 +29,11 @@
           </nav>
         </div>
         <div class="topbar-actions">
-          <button id="topbar-run-demo" class="topbar-run-btn" type="button">Run Demo</button>
-          <button class="topbar-icon-btn" type="button" aria-label="Notifications">
+          <button id="topbar-run-demo" class="topbar-run-btn" type="button">Run check</button>
+          <button class="topbar-icon-btn" type="button" aria-label="Notifications (not used in this build)">
             <span aria-hidden="true">•</span>
           </button>
-          <button class="topbar-icon-btn" type="button" aria-label="Account">
+          <button class="topbar-icon-btn" type="button" aria-label="Account (not used in this build)">
             <span aria-hidden="true">○</span>
           </button>
         </div>

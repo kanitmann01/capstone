@@ -26,6 +26,7 @@ from scanner.settings import ScannerSettings  # Project-local: scanner configura
 
 
 FREE_HOST_SUFFIXES = (".vercel.app", ".github.io", ".netlify.app", ".glitch.me", ".onrender.com", ".pages.dev", ".web.app")
+SSO_PROVIDER_BRANDS = {"apple", "google", "microsoft"}
 GENERIC_SUSPICIOUS_PHRASES = (
     "verify account",
     "verify your account",
@@ -138,21 +139,21 @@ class ContentScanner:
             image_domains=image_domains,
             form_action_domains=form_action_domains,
         )
-        detected_brand = brand_candidates[0].brand if brand_candidates else ""
+        primary_candidate = self._select_primary_brand_candidate(brand_candidates)
+        detected_brand = primary_candidate.brand if primary_candidate else ""
         detected_profile = self._profile_by_name(detected_brand)
-        brand_mismatch = bool(
-            detected_brand
-            and detected_profile
-            and not host_matches_brand(self.target.host, detected_profile)
-        )
+        brand_mismatch = self._brand_mismatch(primary_candidate, detected_profile)
         brand_path_match = self._brand_path_match()
         suspicious_hits = self._suspicious_phrase_hits(page_title=page_title, visible_text=visible_text)
         host_provider = guess_host_provider(self.target.host) or ""
         free_host = bool(host_provider)
         login_form_present = form_stats["password_field_count"] > 0 or form_stats["form_count"] > 0
-        form_action_mismatch = bool(form_action_domains and any(
-            self._domain_mismatch(action_domain, detected_profile) for action_domain in form_action_domains
-        ))
+        form_action_mismatch = bool(
+            form_action_domains
+            and detected_profile
+            and brand_mismatch
+            and any(self._domain_mismatch(action_domain, detected_profile) for action_domain in form_action_domains)
+        )
         no_navigation_menu = nav_link_count == 0 and login_form_present
         password_on_http = form_stats["password_field_count"] > 0 and self.target.scheme != "https"
         content_keyword_flag = bool(suspicious_hits)
@@ -357,6 +358,7 @@ class ContentScanner:
                 if token:
                     keyword_hits.add(token)
 
+            has_brand_evidence = bool(matched_fields)
             for phrase in (*profile.login_phrases, *profile.suspicious_phrases):
                 lowered_phrase = phrase.lower()
                 if lowered_phrase and (
@@ -365,6 +367,10 @@ class ContentScanner:
                     or lowered_phrase in lowered_headings
                     or lowered_phrase in lowered_path
                 ):
+                    # Generic login copy like "sign in" appears on many legitimate pages.
+                    # Only attach brand phrases after a real brand token/domain matched.
+                    if phrase in profile.login_phrases and not has_brand_evidence:
+                        continue
                     matched_phrases.append(phrase)
                     score += 4 if phrase in profile.login_phrases else 6
 
@@ -388,6 +394,53 @@ class ContentScanner:
 
         candidates.sort(key=lambda candidate: (candidate.score, len(candidate.matched_fields)), reverse=True)
         return candidates[:5]
+
+    def _select_primary_brand_candidate(self, candidates: list[BrandCandidate]) -> BrandCandidate | None:
+        """Choose the impersonation target without promoting weak SSO button matches."""
+        if not candidates:
+            return None
+
+        for candidate in candidates:
+            if candidate.official_domain_match:
+                return candidate
+
+        host_candidates = [
+            candidate
+            for candidate in candidates
+            if self._has_primary_brand_evidence(candidate) and not self._is_weak_sso_candidate(candidate)
+        ]
+        if host_candidates:
+            return host_candidates[0]
+
+        for candidate in candidates:
+            if self._has_primary_brand_evidence(candidate):
+                return candidate
+        return None
+
+    def _has_primary_brand_evidence(self, candidate: BrandCandidate) -> bool:
+        """Return True for fields that identify the page owner or impersonation target."""
+        fields = set(candidate.matched_fields)
+        return bool(fields & {"host", "official_domain", "path", "path_keyword", "title", "heading", "image"})
+
+    def _is_weak_sso_candidate(self, candidate: BrandCandidate) -> bool:
+        """Return True when a common SSO provider only appears as page-body login text."""
+        if normalize_brand_token(candidate.brand) not in SSO_PROVIDER_BRANDS:
+            return False
+        if candidate.official_domain_match:
+            return False
+        fields = set(candidate.matched_fields)
+        strong_fields = {"host", "official_domain", "path", "path_keyword", "title", "heading"}
+        return not bool(fields & strong_fields)
+
+    def _brand_mismatch(self, candidate: BrandCandidate | None, profile: BrandProfile | None) -> bool:
+        """Return whether the selected primary brand conflicts with the host."""
+        if not candidate or not profile:
+            return False
+        if candidate.official_domain_match or host_matches_brand(self.target.host, profile):
+            return False
+        if self._is_weak_sso_candidate(candidate):
+            return False
+        return self._has_primary_brand_evidence(candidate)
 
     def _profile_by_name(self, name: str) -> BrandProfile | None:
         """Look up a brand profile by its exact name."""
@@ -429,9 +482,19 @@ class ContentScanner:
         normalized_domain = str(domain or "").lower()
         if not normalized_domain:
             return False
+        if self._same_site_domain(normalized_domain, self.target.host):
+            return False
         if host_matches_brand(normalized_domain, profile):
             return False
         return True
+
+    def _same_site_domain(self, action_domain: str, host: str) -> bool:
+        """Return True when a form posts to the current host or same site."""
+        action = action_domain.split(":", 1)[0].lower().strip(".")
+        current = str(host or "").split(":", 1)[0].lower().strip(".")
+        if not action or not current:
+            return False
+        return action == current or action.endswith(f".{current}") or current.endswith(f".{action}")
 
     def _impersonation_score(
         self,
@@ -454,46 +517,53 @@ class ContentScanner:
         reasons: list[str] = []
 
         if login_form_present:
-            score += 12
+            score += 2
             reasons.append("login form detected")
         if password_field_count > 0:
-            score += min(25, 10 + password_field_count * 6)
+            score += min(6, 2 + password_field_count * 2)
             reasons.append(f"{password_field_count} password field(s)")
-        if input_field_count >= 3:
-            score += 8
+        if input_field_count >= 5:
+            score += 4
             reasons.append("multiple input fields")
         if free_host:
             score += 18
             reasons.append(f"free host provider: {guess_host_provider(self.target.host) or 'unknown'}")
         if brand_mismatch:
-            score += 30
+            score += 25
             reasons.append("brand text does not match host")
         if brand_path_match:
-            score += 10
+            score += 6
             reasons.append("brand keyword appears in the URL path")
         if suspicious_hits:
-            score += min(20, 4 * len(suspicious_hits))
+            score += min(15, 4 * len(suspicious_hits))
             reasons.append("suspicious login language found")
         if form_action_mismatch:
             score += 12
             reasons.append("form action points away from the brand host")
         if no_navigation_menu:
-            score += 8
+            score += 4
             reasons.append("page has a login form but no navigation")
         if hidden_elements:
-            score += 10
+            score += 15
             reasons.append("hidden page elements detected")
         if password_on_http:
-            score += 20
+            score += 30
             reasons.append("password field appears on a non-HTTPS page")
-        if brand_candidates:
-            score += min(12, brand_candidates[0].score // 2)
-            if brand_candidates[0].matched_fields:
-                reasons.append(f"brand candidate: {brand_candidates[0].brand}")
+        primary_candidate = self._select_primary_brand_candidate(brand_candidates)
+        if primary_candidate and not self._is_weak_sso_candidate(primary_candidate):
+            score += min(8, primary_candidate.score // 3)
+            if primary_candidate.matched_fields:
+                reasons.append(f"brand candidate: {primary_candidate.brand}")
+            if not primary_candidate.official_domain_match and brand_mismatch:
+                score += 8
+                reasons.append("brand candidate does not match an official domain")
 
-        if brand_candidates and not brand_candidates[0].official_domain_match:
-            score += 8
-            reasons.append("brand candidate does not match an official domain")
+        if free_host and brand_path_match:
+            score += 10
+            reasons.append("free host with brand in URL")
+        if free_host and brand_mismatch:
+            score += 15
+            reasons.append("free host with brand mismatch")
 
         if score > 100:
             score = 100

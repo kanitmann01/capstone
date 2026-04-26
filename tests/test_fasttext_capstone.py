@@ -2,14 +2,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import sys
+
+import pytest
 
 from app.service import AppService
 from pipeline.evaluation.evaluate import build_report_payload
 from pipeline.evaluation.evaluate import evaluate_csv
+from pipeline.modeling.fasttext_dataset import build_corpus_lines
 from pipeline.modeling.fasttext_dataset import serialize_snapshot
+from pipeline.modeling.fasttext_train import FastTextTrainingConfig
+from pipeline.modeling.fasttext_train import train_fasttext_model
+from pipeline.modeling.inference import FastTextDetector
 
 
-def test_fasttext_serializer_uses_plain_text_only():
+def test_fasttext_serializer_weights_structural_snapshot_signals():
     snapshot = {
         "content": {
             "page_title": "Netflix Sign In",
@@ -30,12 +37,149 @@ def test_fasttext_serializer_uses_plain_text_only():
         }
     }
     text = serialize_snapshot(snapshot)
-    assert "Netflix Sign In" in text
-    assert "Verify your account" in text
-    assert "sign in" in text.lower()
-    assert "host_provider=" not in text
-    assert "free_host=" not in text
+    assert "__brand__netflix" in text
+    assert text.count("__feature__login_form_present") >= 4
+    assert text.count("__feature__password_field") >= 1
+    assert "__host__vercel" in text
+    assert "__signal__free_host" in text
+    assert "__signal__brand_mismatch" in text
+    assert "__phrase__verify_your_account" in text
+    assert "netflix sign in" in text
     assert "verify your account" in text.lower()
+
+
+def test_fasttext_detector_scores_phishing_probability_for_clean_prediction():
+    class FakeModel:
+        def predict(self, text, k=1):
+            assert text == "ordinary login page"
+            assert k == 2
+            return ["__label__clean", "__label__phishing"], [0.99, 0.01]
+
+    detector = FastTextDetector("missing-model.bin", threshold=0.5)
+    detector._model = FakeModel()
+
+    prediction = detector.predict_text("ordinary login page")
+
+    assert prediction is not None
+    assert prediction.label == "clean"
+    assert prediction.probability == pytest.approx(0.01)
+    assert prediction.score == pytest.approx(1.0)
+    assert prediction.raw_label == "__label__clean"
+    assert prediction.raw_probability == pytest.approx(0.99)
+
+
+def test_fasttext_detector_uses_empty_token_for_blank_text():
+    class FakeModel:
+        def predict(self, text, k=1):
+            assert text == "__feature__empty_text"
+            assert k == 2
+            return ["__label__clean"], [0.8]
+
+    detector = FastTextDetector("missing-model.bin", threshold=0.5)
+    detector._model = FakeModel()
+
+    prediction = detector.predict_text("")
+
+    assert prediction is not None
+    assert prediction.label == "clean"
+    assert prediction.probability == pytest.approx(0.2)
+    assert prediction.score == pytest.approx(20.0)
+
+
+def test_fasttext_detector_serializes_snapshot_before_prediction():
+    class FakeModel:
+        def predict(self, text, k=1):
+            assert "__feature__login_form_present" in text
+            assert "__brand__example" in text
+            assert "verify account" in text
+            assert k == 2
+            return ["__label__phishing", "__label__clean"], [0.9, 0.1]
+
+    detector = FastTextDetector("missing-model.bin", threshold=0.5)
+    detector._model = FakeModel()
+
+    prediction = detector.predict_snapshot(
+        {
+            "detected_brand": "Example",
+            "login_form_present": True,
+            "visible_text": "Verify account",
+        }
+    )
+
+    assert prediction is not None
+    assert prediction.label == "phishing"
+    assert prediction.score == pytest.approx(90.0)
+
+
+def test_build_corpus_lines_accepts_text_labels():
+    rows = [
+        {"label": "phishing", "visible_text": "Verify your account"},
+        {"label": "clean", "visible_text": "Welcome to our help center"},
+    ]
+
+    lines = build_corpus_lines(rows)
+
+    assert lines == [
+        "__label__phishing verify your account",
+        "__label__clean welcome to our help center",
+    ]
+
+
+def test_train_fasttext_model_rejects_single_label_corpus(tmp_path):
+    corpus_path = tmp_path / "corpus.txt"
+    corpus_path.write_text("__label__phishing Verify your account\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="both phishing and clean"):
+        train_fasttext_model(
+            corpus_path=corpus_path,
+            model_path=tmp_path / "model.bin",
+            metadata_path=tmp_path / "model.json",
+            config=FastTextTrainingConfig(),
+        )
+
+
+def test_train_fasttext_model_uses_autotune_validation_split(monkeypatch, tmp_path):
+    calls = []
+
+    class FakeModel:
+        def save_model(self, path):
+            Path(path).write_text("fake model", encoding="utf-8")
+
+    class FakeFastText:
+        @staticmethod
+        def train_supervised(**kwargs):
+            calls.append(kwargs)
+            assert "autotuneValidationFile" in kwargs
+            assert Path(kwargs["input"]).read_text(encoding="utf-8").count("__label__") == 2
+            assert Path(kwargs["autotuneValidationFile"]).read_text(encoding="utf-8").count("__label__") == 2
+            return FakeModel()
+
+    monkeypatch.setitem(sys.modules, "fasttext", FakeFastText)
+    corpus_path = tmp_path / "corpus.txt"
+    corpus_path.write_text(
+        "\n".join(
+            [
+                "__label__phishing verify account",
+                "__label__phishing password reset",
+                "__label__clean help center",
+                "__label__clean company blog",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    metadata = train_fasttext_model(
+        corpus_path=corpus_path,
+        model_path=tmp_path / "model.bin",
+        metadata_path=tmp_path / "model.json",
+        config=FastTextTrainingConfig(autotune=True, autotune_duration=5, validation_ratio=0.5),
+    )
+
+    assert calls
+    assert calls[0]["autotuneDuration"] == 5
+    assert metadata["autotune"]["enabled"] is True
+    assert metadata["autotune"]["validation_counts"] == {"phishing": 1, "clean": 1}
 
 
 def test_app_service_scan_url_uses_fasttext_and_rules(monkeypatch):
@@ -130,7 +274,7 @@ def test_app_service_scan_url_uses_fasttext_and_rules(monkeypatch):
             }
 
     monkeypatch.setattr("app.service.extract_page_snapshot", fake_extract_page_snapshot)
-    monkeypatch.setattr(service.detector, "predict_text", lambda text: FakePrediction())
+    monkeypatch.setattr(service.detector, "predict_snapshot", lambda snapshot: FakePrediction())
     monkeypatch.setattr(service, "_run_legacy_checks", fake_legacy_checks)
     monkeypatch.setattr(service, "_run_structured_ml", fake_structured_ml)
 
@@ -244,7 +388,7 @@ def test_app_service_overrides_official_domain(monkeypatch):
             }
 
     monkeypatch.setattr("app.service.extract_page_snapshot", fake_extract_page_snapshot)
-    monkeypatch.setattr(service.detector, "predict_text", lambda text: FakePrediction())
+    monkeypatch.setattr(service.detector, "predict_snapshot", lambda snapshot: FakePrediction())
     monkeypatch.setattr(service, "_run_legacy_checks", fake_legacy_checks)
     monkeypatch.setattr(service, "_run_structured_ml", fake_structured_ml)
 

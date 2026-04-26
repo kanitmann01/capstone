@@ -18,6 +18,9 @@ from scanner.brand_profiles import load_brand_profiles  # Project-local: JSON lo
 from scanner.brand_profiles import normalize_brand_token  # Project-local: token normalisation
 
 
+SSO_PROVIDER_BRANDS = {"apple", "google", "microsoft"}
+
+
 def edit_distance(a: str, b: str, max_distance: int | None = None) -> int:
     """Compute Levenshtein distance between two strings after normalisation."""
     left = normalize_brand_token(a)
@@ -135,24 +138,62 @@ def summarize_brand_impersonation(
 ) -> dict[str, Any]:
     """Collate brand impersonation signals into a flat summary dict."""
     brand_candidates = list(content_result.get("brand_candidates") or [])
-    detected_brand = content_result.get("detected_brand") or ""
+    detected_brand = _primary_detected_brand(host, content_result, brand_candidates)
     free_host_provider = content_result.get("host_provider") or ""
     if not free_host_provider and content_result.get("free_host"):
         free_host_provider = content_result.get("host_provider") or ""
     reasons = list(content_result.get("impersonation_reasons") or [])
+    brand_mismatch = bool(content_result.get("brand_mismatch")) and bool(detected_brand)
+    form_action_mismatch = bool(content_result.get("form_action_mismatch")) and brand_mismatch
     return {
         "detected_brand": detected_brand,
         "free_host_provider": free_host_provider,
-        "brand_mismatch": bool(content_result.get("brand_mismatch")),
+        "brand_mismatch": brand_mismatch,
         "brand_path_match": bool(content_result.get("brand_path_match")),
         "brand_path_distance": min(
             [edit_distance(path, candidate.get("brand", ""), max_distance=2) for candidate in brand_candidates] or [99]
         ),
         "login_form_present": bool(content_result.get("login_form_present")),
         "password_field_count": int(content_result.get("password_field_count") or 0),
-        "form_action_mismatch": bool(content_result.get("form_action_mismatch")),
+        "form_action_mismatch": form_action_mismatch,
         "suspicious_phrase_hits": list(content_result.get("suspicious_phrase_hits") or []),
         "brand_candidates": brand_candidates[:3],
         "reasons": reasons[:8],
         "target_host": host,
     }
+
+
+def _primary_detected_brand(host: str, content_result: dict[str, Any], candidates: list[dict[str, Any]]) -> str:
+    """Return a host-first primary brand, avoiding weak SSO-only candidates."""
+    detected = str(content_result.get("detected_brand") or "").strip()
+    if detected:
+        candidate = next((item for item in candidates if item.get("brand") == detected), None)
+        if candidate is None or not _is_weak_sso_candidate(candidate):
+            return detected
+
+    for candidate in candidates:
+        if candidate.get("official_domain_match"):
+            return str(candidate.get("brand") or "")
+
+    for candidate in candidates:
+        if _has_primary_brand_evidence(candidate) and not _is_weak_sso_candidate(candidate):
+            return str(candidate.get("brand") or "")
+
+    del host
+    return ""
+
+
+def _has_primary_brand_evidence(candidate: dict[str, Any]) -> bool:
+    """Return True for fields that identify a page owner or impersonation target."""
+    fields = set(candidate.get("matched_fields") or [])
+    return bool(fields & {"host", "official_domain", "path", "path_keyword", "title", "heading", "image"})
+
+
+def _is_weak_sso_candidate(candidate: dict[str, Any]) -> bool:
+    """Return True when a common SSO provider is only present as login body text."""
+    if normalize_brand_token(candidate.get("brand") or "") not in SSO_PROVIDER_BRANDS:
+        return False
+    if candidate.get("official_domain_match"):
+        return False
+    fields = set(candidate.get("matched_fields") or [])
+    return not bool(fields & {"host", "official_domain", "path", "path_keyword", "title", "heading"})

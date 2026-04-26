@@ -11,7 +11,7 @@ binary plus metadata sidecar.
 import argparse  # Standard library: command-line argument parsing
 from pathlib import Path  # Standard library: filesystem path abstraction
 
-from pipeline.modeling.fasttext_train import FastTextTrainingConfig  # Project-local: hyperparameter dataclass
+from pipeline.modeling.fasttext_train import default_training_config  # Project-local: config factory
 from pipeline.modeling.fasttext_train import train_fasttext_model  # Project-local: FastText trainer
 from pipeline.shared.config import CapstoneConfig  # Project-local: global capstone configuration
 
@@ -37,14 +37,7 @@ def main() -> int:
     """Entry point: parse args, train model, print summary."""
     args = build_parser().parse_args()
     config = CapstoneConfig.from_env()
-    train_config = FastTextTrainingConfig(
-        dim=config.fasttext_dim,
-        epoch=config.fasttext_epoch,
-        lr=config.fasttext_lr,
-        word_ngrams=config.fasttext_word_ngrams,
-        min_count=config.fasttext_min_count,
-        loss=config.fasttext_loss,
-    )
+    train_config = default_training_config(config)
     model_path = Path(args.model_path or config.fasttext_model_path)
     metadata_path = Path(args.metadata_path or config.fasttext_metadata_path)
     metadata = train_fasttext_model(

@@ -7,7 +7,6 @@ const detailsEl = document.getElementById("details");
 const urlInput = document.getElementById("url-input");
 const scanBtn = form?.querySelector('button[type="submit"]');
 const topbarRunDemoBtn = document.getElementById("topbar-run-demo");
-const sidebarNewScanBtn = document.getElementById("sidebar-new-scan");
 
 const summaryUrl = document.getElementById("summary-url");
 const summaryRisk = document.getElementById("summary-risk");
@@ -42,27 +41,32 @@ const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)
 let brandClosenessNetwork = null;
 
 const loadingDetailSteps = [
-  "Normalizing the URL and preparing the page snapshot.",
-  "Reading the visible text, forms, and login structure.",
-  "Comparing the host, brand name, and suspicious phrases.",
-  "Blending FastText, rules, and evidence into the final demo result.",
+  "Cleaning up the address and opening a safe snapshot of the page.",
+  "Reading visible text, forms, and anything that looks like a login.",
+  "Comparing the site to known brands and common risky wording.",
+  "Combining scores and evidence into one result for you.",
 ];
 
 let loadingDetailTimer = null;
 let statusSignature = "";
 let scoreAnimationFrame = 0;
+let scanGeneration = 0;
+let activeScanController = null;
+const SCAN_TIMEOUT_MS = 180000;
+const TOKEN_LIST_CAP = 80;
+const TOKEN_TEXT_MAX = 480;
 
 function defaultStatusDetail(tone) {
   if (tone === "danger") {
-    return "The page needs manual review before anyone should trust it.";
+    return "Do not log in or enter personal data until someone you trust has reviewed this link.";
   }
   if (tone === "warn") {
-    return "The page looks suspicious enough to pause and inspect further.";
+    return "Treat this as suspicious: double-check the sender and the real company website before you proceed.";
   }
   if (tone === "ok") {
-    return "The page does not show strong impersonation signals in this pass.";
+    return "We did not see strong impersonation signals in this pass-still use normal caution online.";
   }
-  return "Paste a suspicious link to start the demo.";
+  return "Paste a link above to run a check.";
 }
 
 function setStatus(message, tone = "muted", detail = defaultStatusDetail(tone)) {
@@ -110,8 +114,9 @@ function setScanLoading(isLoading) {
   form.classList.toggle("is-scanning", isLoading);
   scanBtn.disabled = isLoading;
   scanBtn.setAttribute("aria-busy", String(isLoading));
-  scanBtn.textContent = isLoading ? "Running Demo..." : "Run Demo";
+  scanBtn.textContent = isLoading ? "Checking…" : "Analyze link";
   urlInput.readOnly = isLoading;
+  urlInput.setAttribute("aria-busy", String(isLoading));
   statusEl.classList.toggle("status-loading", isLoading);
   if (isLoading) {
     startLoadingDetails();
@@ -124,16 +129,85 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function runViewTransition(update) {
+  if (prefersReducedMotion || typeof document.startViewTransition !== "function") {
+    update();
+    return Promise.resolve();
+  }
+  return document.startViewTransition(update).finished.catch(() => {});
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatFetchErrorMessage(payload, response) {
+  const fallback = `Request failed (${response.status}). Try again.`;
+  if (!payload || typeof payload !== "object") {
+    return fallback;
+  }
+  const detail = payload.detail;
+  if (typeof detail === "string" && detail.trim()) {
+    return detail.trim();
+  }
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item.msg === "string") {
+          const loc = Array.isArray(item.loc) ? item.loc.filter(Boolean).join(".") : "";
+          return loc ? `${loc}: ${item.msg}` : item.msg;
+        }
+        return null;
+      })
+      .filter(Boolean);
+    if (parts.length) {
+      return parts.join(" ");
+    }
+  }
+  return fallback;
+}
+
+function setTargetHostLine(hostOrUrl) {
+  if (!targetHost) return;
+  const text = String(hostOrUrl ?? "-");
+  targetHost.textContent = "";
+  targetHost.appendChild(document.createTextNode("Address: "));
+  const span = document.createElement("span");
+  span.className = "mono";
+  span.textContent = text;
+  targetHost.appendChild(span);
+}
+
 function renderTokenList(element, values, emptyLabel, tone = "neutral") {
   if (!element) return;
   element.textContent = "";
-  const entries = Array.isArray(values) && values.length > 0 ? values : [emptyLabel];
+  let entries = Array.isArray(values) && values.length > 0 ? values.map((v) => String(v)) : [emptyLabel];
+  let overflowNote = "";
+  if (entries.length > TOKEN_LIST_CAP && entries[0] !== emptyLabel) {
+    const extra = entries.length - TOKEN_LIST_CAP;
+    entries = entries.slice(0, TOKEN_LIST_CAP);
+    overflowNote = `+${extra} more`;
+  }
   entries.forEach((value) => {
     const token = document.createElement("span");
     token.className = `token token-${tone}`;
-    token.textContent = value;
+    const slice = value.length > TOKEN_TEXT_MAX ? `${value.slice(0, TOKEN_TEXT_MAX)}…` : value;
+    token.textContent = slice;
+    token.title = value.length > TOKEN_TEXT_MAX ? value : "";
     element.appendChild(token);
   });
+  if (overflowNote) {
+    const more = document.createElement("span");
+    more.className = "token token-neutral";
+    more.textContent = overflowNote;
+    element.appendChild(more);
+  }
 }
 
 function setStatusPill(element, value, yesLabel, noLabel, yesTone, noTone) {
@@ -144,10 +218,16 @@ function setStatusPill(element, value, yesLabel, noLabel, yesTone, noTone) {
 }
 
 function scoreTone(score) {
-  if (score >= 75) return { tone: "danger", label: "High risk", band: "75-100: strong phishing indicators" };
-  if (score >= 50) return { tone: "warn", label: "Suspicious", band: "50-74: suspicious enough to review" };
-  if (score >= 25) return { tone: "caution", label: "Use caution", band: "25-49: mixed signals" };
-  return { tone: "ok", label: "Low apparent risk", band: "0-24: no strong indicators" };
+  if (score >= 75) {
+    return { tone: "danger", label: "High risk", band: "Score 75–100: several strong warning signs" };
+  }
+  if (score >= 50) {
+    return { tone: "warn", label: "Suspicious", band: "Score 50–74: worth a careful second look" };
+  }
+  if (score >= 25) {
+    return { tone: "caution", label: "Use caution", band: "Score 25–49: mixed or weak signals" };
+  }
+  return { tone: "ok", label: "Lower concern", band: "Score 0–24: no strong warning signs in this check" };
 }
 
 function animateScore(targetScore) {
@@ -184,16 +264,16 @@ function explanationFromResult(result) {
     notes.push(`Looks like a ${brandSummary.detected_brand} login clone.`);
   }
   if (brandSummary.free_host_provider) {
-    notes.push(`Hosted on ${brandSummary.free_host_provider}-style free infrastructure.`);
+    notes.push(`Uses ${brandSummary.free_host_provider}-style free hosting, which scam pages often use.`);
   }
   if ((brandSummary.suspicious_phrase_hits || []).length > 0) {
-    notes.push("Uses common phishing language.");
+    notes.push("Uses wording that often appears on fraudulent login pages.");
   }
   if (brandSummary.login_form_present) {
-    notes.push("Contains a login form with password input.");
+    notes.push("Includes a login form that asks for a password.");
   }
   if (result.override_applied && result.override_reason) {
-    notes.push(`Final decision overridden because of ${result.override_reason}.`);
+    notes.push(`We lowered the risk score because ${result.override_reason}.`);
   }
   return notes.join(" ");
 }
@@ -214,9 +294,11 @@ function formatMaybeScore(value) {
 
 function screenshotVerdictLabel(rawVerdict) {
   const normalized = String(rawVerdict || "").toLowerCase();
-  if (normalized.includes("phish")) return "PHISHING";
-  if (normalized.includes("clean") || normalized.includes("legit") || normalized.includes("safe")) return "CLEAN";
-  return "UNKNOWN";
+  if (normalized.includes("phish")) return "Likely phishing";
+  if (normalized.includes("clean") || normalized.includes("legit") || normalized.includes("safe")) {
+    return "Likely legitimate";
+  }
+  return "Unclear";
 }
 
 function showBrandClosenessEmpty(show) {
@@ -238,7 +320,7 @@ function buildBrandClosenessGraphData(parsedRoot, rows, matchedBrand) {
     {
       id: rootId,
       label: parsedRoot || "unknown",
-      title: `Analyzed root: ${parsedRoot || "unknown"}`,
+      title: `This link’s domain: ${parsedRoot || "unknown"}`,
       group: "root",
       shape: "dot",
       size: 26,
@@ -292,7 +374,14 @@ function buildBrandClosenessGraphData(parsedRoot, rows, matchedBrand) {
 
 function renderBrandClosenessGraph(parsedRoot, rows, matchedBrand) {
   if (!brandClosenessGraph || typeof window.vis === "undefined") return;
-  const data = buildBrandClosenessGraphData(parsedRoot, rows, matchedBrand);
+  let data;
+  try {
+    data = buildBrandClosenessGraphData(parsedRoot, rows, matchedBrand);
+  } catch (err) {
+    console.error("Brand closeness graph data failed:", err);
+    showBrandClosenessEmpty(true);
+    return;
+  }
   const options = {
     autoResize: true,
     interaction: {
@@ -325,17 +414,25 @@ function renderBrandClosenessGraph(parsedRoot, rows, matchedBrand) {
     layout: { improvedLayout: true },
   };
 
-  if (brandClosenessNetwork) {
-    brandClosenessNetwork.setData(data);
-    brandClosenessNetwork.setOptions(options);
-  } else {
-    brandClosenessNetwork = new window.vis.Network(brandClosenessGraph, data, options);
-  }
-  brandClosenessNetwork.once("stabilizationIterationsDone", () => {
+  try {
     if (brandClosenessNetwork) {
-      brandClosenessNetwork.fit({ animation: { duration: 420, easingFunction: "easeInOutQuad" } });
+      brandClosenessNetwork.setData(data);
+      brandClosenessNetwork.setOptions(options);
+    } else {
+      brandClosenessNetwork = new window.vis.Network(brandClosenessGraph, data, options);
     }
-  });
+    brandClosenessNetwork.once("stabilizationIterationsDone", () => {
+      if (brandClosenessNetwork) {
+        const anim = prefersReducedMotion
+          ? { duration: 0 }
+          : { duration: 420, easingFunction: "easeInOutQuad" };
+        brandClosenessNetwork.fit({ animation: anim });
+      }
+    });
+  } catch (err) {
+    console.error("Brand closeness graph render failed:", err);
+    showBrandClosenessEmpty(true);
+  }
 }
 
 function renderBrandCloseness(result) {
@@ -356,13 +453,16 @@ function renderBrandCloseness(result) {
 
   brandClosenessVerdict.textContent = isScam
     ? `${threatType.replaceAll("_", " ")}: ${matchedBrand || "brand match"}`
-    : (brandRecognition.status === "safe" ? "No close spoof found" : "Unavailable");
+    : (brandRecognition.status === "safe" ? "No close look-alike" : "Brand map unavailable");
   brandClosenessVerdict.className = `status-pill ${isScam ? "danger" : "ok"}`;
   const inventorySize = Number(brandRecognition.brand_inventory_size) || 0;
-  const inventorySuffix = inventorySize > 0 ? ` Compared against ${inventorySize} brands.` : "";
+  const inventorySuffix = inventorySize > 0 ? ` We compared this domain to ${inventorySize} known brands.` : "";
+  const safeRoot = escapeHtml(parsedRoot);
+  const safePct = escapeHtml(String(thresholdPercent));
+  const suffixEsc = escapeHtml(inventorySuffix);
   brandClosenessCopy.innerHTML = isScam
-    ? `The analyzed root "<strong>${parsedRoot}</strong>" is close enough to a protected brand to require review. Only candidates above the <strong>${thresholdPercent}%</strong> similarity threshold are shown.${inventorySuffix}`
-    : `The analyzed root "<strong>${parsedRoot}</strong>" did not cross the brand-spoofing threshold. Only candidates above the <strong>${thresholdPercent}%</strong> similarity threshold are shown.${inventorySuffix}`;
+    ? `The domain <strong>${safeRoot}</strong> is similar enough to a protected brand that you should treat it as high risk until verified. Only brands above <strong>${safePct}%</strong> similarity are shown on the map.${suffixEsc}`
+    : `The domain <strong>${safeRoot}</strong> did not look enough like a protected brand to trigger a spoofing alert. Only brands above <strong>${safePct}%</strong> similarity are shown on the map.${suffixEsc}`;
 
   const graphRows = allRows.filter((row) => {
     const similarity = Number(row.similarity_score) || 0;
@@ -404,56 +504,55 @@ function renderResult(result) {
 
   summaryEl.classList.remove("hidden");
   detailsEl.classList.remove("hidden");
+  summaryEl.dataset.tone = tone.tone;
+  document.body.dataset.riskTone = tone.tone;
 
   summaryUrl.textContent = result.url || "-";
-  if (targetHost) {
-    const displayedTarget = result.details?.host || result.url || "-";
-    targetHost.innerHTML = `Target: <span class="mono">${displayedTarget}</span>`;
-  }
+  setTargetHostLine(result.details?.host || result.url || "-");
   summaryRisk.textContent = `${Math.round(unifiedScore)}`;
   summaryRisk.dataset.value = `${unifiedScore}`;
   summaryBand.textContent = tone.band;
   summaryState.textContent = tone.label;
   summaryState.className = `summary-state ${tone.tone}`;
   summaryGuidance.textContent = result.override_applied
-    ? `FastText predicts ${fasttextLabel} with a score of ${formatMaybeScore(fasttextScore)}, but the final verdict is overridden to clean because the site matches an official brand domain.`
-    : `FastText predicts ${fasttextLabel} with a score of ${formatMaybeScore(fasttextScore)}.`;
+    ? `The URL-only model suggested ${fasttextLabel} (about ${formatMaybeScore(fasttextScore)} out of 100), but we lowered the risk because this address matches an official brand domain.`
+    : `The URL-only model suggests ${fasttextLabel} with a score of about ${formatMaybeScore(fasttextScore)} out of 100.`;
   summaryAction.textContent = result.override_applied
-    ? `Official domain override applied: ${result.override_reason}.`
+    ? `Trusted-domain override: ${result.override_reason}.`
     : (rulesScore > 0
-      ? `Rules baseline score: ${Math.round(rulesScore)} (${rulesLabel}).`
-      : "Rules baseline did not surface strong evidence in this pass.");
+      ? `Rule-based score: ${Math.round(rulesScore)} out of 100 (${rulesLabel}).`
+      : "The rule-based checks did not find strong structural red flags this time.");
   if (summaryLegacy) {
     summaryLegacy.textContent = Number.isFinite(Number(legacyScore))
-      ? `Legacy weighted score: ${formatMaybeScore(legacyScore)}.`
-      : "Legacy checks did not produce an available weighted score.";
+      ? `Older combined score: ${formatMaybeScore(legacyScore)} out of 100.`
+      : "No older combined score was returned for this check.";
   }
   if (summaryMl) {
     summaryMl.textContent = Number.isFinite(Number(structuredMlScore))
-      ? `Structured ML score: ${formatMaybeScore(structuredMlScore)}. Brand recognition score: ${formatMaybeScore(brandRecognitionScore)}.`
-      : `Structured ML unavailable. Brand recognition score: ${formatMaybeScore(brandRecognitionScore)}.`;
+      ? `Numeric model score: ${formatMaybeScore(structuredMlScore)} out of 100. Brand-similarity score: ${formatMaybeScore(brandRecognitionScore)} out of 100.`
+      : `Numeric model not available. Brand-similarity score: ${formatMaybeScore(brandRecognitionScore)} out of 100.`;
   }
-  summaryHybrid.textContent = `Unified score: ${Math.round(result.override_applied ? 0 : unifiedScore)}`;
+  summaryHybrid.textContent = `Overall score: ${Math.round(result.override_applied ? 0 : unifiedScore)}`;
   summaryHybrid.className = `status-pill ${tone.tone}`;
   summaryVerdict.textContent = verdictPill;
   summaryVerdict.className = `status-pill ${tone.tone}`;
 
-  brandValue.textContent = brandSummary.detected_brand || "No brand identified";
+  brandValue.textContent = brandSummary.detected_brand || "No brand detected";
   hostValue.textContent = brandSummary.free_host_provider
-    ? `${brandSummary.free_host_provider} host`
-    : (result.details?.host || "Unknown host");
+    ? `${brandSummary.free_host_provider} hosting`
+    : (result.details?.host || "Host unknown");
   formValue.textContent = brandSummary.login_form_present
-    ? `${brandSummary.password_field_count || 0} password field(s)`
-    : "No login form detected";
+    ? `${brandSummary.password_field_count || 0} password field(s) on the page`
+    : "No login form with a password field";
   pathValue.textContent = brandSummary.brand_path_match
-    ? "Brand token appears in the path"
-    : "No obvious brand/path match";
+    ? "The web address path contains a brand-like name"
+    : "No obvious brand name in the path";
   if (feedValue) {
     feedValue.textContent = result.feed_freshness?.last_refresh_utc
-      ? `Last refresh: ${result.feed_freshness.last_refresh_utc}`
-      : (result.feed_freshness?.stale_cache ? "Threat feed cache is stale" : "No feed refresh timestamp");
+      ? `Threat list last updated: ${result.feed_freshness.last_refresh_utc}`
+      : (result.feed_freshness?.stale_cache ? "Threat list cache is out of date" : "No threat-list timestamp for this check");
   }
-  explanationValue.textContent = explanation || "No strong narrative evidence was extracted.";
+  explanationValue.textContent = explanation || "No short plain-language summary was available—see the fields below.";
   if (formSnippet) {
     const host = result.details?.host || "unknown.host";
     const action = result.details?.form_action_domains?.[0] || `https://${host}/post`;
@@ -465,30 +564,69 @@ function renderResult(result) {
     "No suspicious phrases found",
     "warn",
   );
-  renderTokenList(summaryContrib, result.contributing_checks, "No dominant signals", "neutral");
-  renderTokenList(summaryUnknown, result.unknown_checks, "All checks returned", "warn");
+  renderTokenList(summaryContrib, result.contributing_checks, "No single check drove the score", "neutral");
+  renderTokenList(summaryUnknown, result.unknown_checks, "No inconclusive checks", "warn");
   renderBrandCloseness(result);
 
   animateScore(unifiedScore);
   setStatus(
-    `${tone.label}. ${result.override_applied ? "Official domain match overrode the model score." : ""} ${explanation || "Review the evidence cards for details."}`.trim(),
+    `${tone.label}. ${result.override_applied ? "A trusted brand domain lowered the automated score." : ""} ${explanation || "See the sections below for specifics."}`.trim(),
     tone.tone,
     explanation || (result.override_applied ? "Official brand domain match." : tone.band),
   );
   detailsJson.textContent = JSON.stringify(result, null, 2);
 }
 
-async function scanUrl(url) {
-  const response = await fetch("/scan/combined", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url }),
-  });
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.detail || "Scan failed.");
+async function scanUrl(url, { signal: parentSignal } = {}) {
+  const controller = new AbortController();
+  const { signal } = controller;
+  let timedOut = false;
+  const timeoutId = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, SCAN_TIMEOUT_MS);
+  const onParentAbort = () => controller.abort();
+  if (parentSignal) {
+    if (parentSignal.aborted) {
+      controller.abort();
+    } else {
+      parentSignal.addEventListener("abort", onParentAbort, { once: true });
+    }
   }
-  return payload;
+  try {
+    const response = await fetch("/scan/combined", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+      signal,
+    });
+    const raw = await response.text();
+    let payload = {};
+    if (raw) {
+      try {
+        payload = JSON.parse(raw);
+      } catch {
+        throw new Error("The server sent a response we could not read. Try again later.");
+      }
+    }
+    if (!response.ok) {
+      throw new Error(formatFetchErrorMessage(payload, response));
+    }
+    return payload;
+  } catch (err) {
+    if (err && err.name === "AbortError") {
+      if (timedOut) {
+        throw new Error("This check timed out (the page took too long to respond). Try again or use a shorter link.");
+      }
+      throw new Error("This check was cancelled.");
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timeoutId);
+    if (parentSignal) {
+      parentSignal.removeEventListener("abort", onParentAbort);
+    }
+  }
 }
 
 function submitScanFromShell() {
@@ -504,36 +642,66 @@ if (form) {
     event.preventDefault();
     const url = urlInput.value.trim();
     if (!url) {
-      setStatus("Please provide a URL.", "warn", "Paste a full URL or a bare domain.");
+      setStatus("Add a web address first.", "warn", "Paste a full link, for example https://example.com/signin.");
       return;
     }
-    setScanLoading(true);
-    setStatus("Running the scan demo...", "muted", loadingDetailSteps[0]);
+    if (url.length > 8192) {
+      setStatus("That link is too long.", "warn", "Use a shorter address (8192 characters max) or paste only the site name.");
+      return;
+    }
+    scanGeneration += 1;
+    const generation = scanGeneration;
+    if (activeScanController) {
+      activeScanController.abort();
+    }
+    activeScanController = new AbortController();
+    const { signal } = activeScanController;
     const scanStart = performance.now();
+    await runViewTransition(() => {
+      setScanLoading(true);
+      setStatus("Checking the link…", "muted", loadingDetailSteps[0]);
+    });
     try {
-      const result = await scanUrl(url);
-      renderResult(result);
+      const result = await scanUrl(url, { signal });
+      if (generation !== scanGeneration) {
+        return;
+      }
+      await runViewTransition(() => {
+        renderResult(result);
+        setScanLoading(false);
+      });
     } catch (error) {
-      setStatus(
-        error.message || "Scan failed.",
-        "danger",
-        "No trustworthy result was produced. Check connectivity and try again.",
-      );
+      if (generation !== scanGeneration) {
+        return;
+      }
+      const msg = error && error.message ? error.message : "This check could not complete.";
+      const isCancelled = msg === "This check was cancelled.";
+      await runViewTransition(() => {
+        setStatus(
+          isCancelled ? "Check stopped." : msg,
+          isCancelled ? "muted" : "danger",
+          isCancelled
+            ? "A newer check was started or the page was left."
+            : "Confirm the address is correct and your network is working, then try again.",
+        );
+        setScanLoading(false);
+      });
     } finally {
+      if (generation === scanGeneration) {
+        activeScanController = null;
+      }
       const elapsed = performance.now() - scanStart;
       const minVisibleLoadingMs = 500;
       if (elapsed < minVisibleLoadingMs) {
         await sleep(minVisibleLoadingMs - elapsed);
       }
-      setScanLoading(false);
+      if (generation === scanGeneration) {
+        setScanLoading(false);
+      }
     }
   });
 }
 
 if (topbarRunDemoBtn) {
   topbarRunDemoBtn.addEventListener("click", submitScanFromShell);
-}
-
-if (sidebarNewScanBtn) {
-  sidebarNewScanBtn.addEventListener("click", submitScanFromShell);
 }

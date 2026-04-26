@@ -17,7 +17,7 @@ from pydantic import Field  # Third-party: model field metadata and defaults
 class URLRequest(BaseModel):
     """Inbound payload for a single URL scan request."""
 
-    url: str
+    url: str = Field(..., max_length=8192, description="Raw or pasted URL to analyze")
     persist: bool = True
 
 

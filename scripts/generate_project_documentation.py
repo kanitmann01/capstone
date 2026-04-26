@@ -4,8 +4,9 @@ from __future__ import annotations
 CLI script: generate a styled Word document from project Markdown sources.
 
 Reads the documentation pages under ``docs/``, converts headings, lists,
-inline code, and fenced code blocks into formatted DOCX elements, and
-writes ``docs/project-documentation.docx``.
+inline code, and fenced code blocks into formatted DOCX elements, appends
+every ``scripts/*.py`` file as a traceability appendix, and writes
+``docs/project-documentation.docx``.
 """
 
 from datetime import datetime, timezone  # Standard library: UTC-aware timestamps
@@ -280,6 +281,44 @@ def add_markdown_file(document: Document, path: Path) -> None:
             document.add_paragraph(code_line, style="DocCode")
 
 
+def add_scripts_appendix(document: Document) -> None:
+    """Append every ``scripts/*.py`` file as traceable source (same folder as this generator)."""
+    heading = document.add_paragraph(style="Heading 1")
+    heading.add_run("Automation scripts (scripts/)")
+
+    intro = document.add_paragraph(style="Normal")
+    intro.add_run(
+        "The sections below embed the current contents of each Python file under "
+        "`scripts/`, so the Word export stays aligned with the runnable tooling in "
+        "that directory."
+    )
+
+    scripts_dir = PROJECT_ROOT / "scripts"
+    py_files = sorted(scripts_dir.glob("*.py"))
+    if not py_files:
+        note = document.add_paragraph(style="DocSmall")
+        note.add_run("No Python files found in scripts/.")
+        return
+
+    for path_index, path in enumerate(py_files):
+        if path_index:
+            document.add_paragraph("")
+
+        title = document.add_paragraph(style="Heading 2")
+        title.add_run(path.name)
+
+        rel = path.relative_to(PROJECT_ROOT)
+        sub = document.add_paragraph(style="DocSmall")
+        sub.add_run(str(rel).replace("\\", "/"))
+
+        body = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        if not body:
+            document.add_paragraph("(empty file)", style="DocCode")
+            continue
+        for line in body:
+            document.add_paragraph(line, style="DocCode")
+
+
 def build_document() -> Path:
     """Assemble the full DOCX from all Markdown sources."""
     document = Document()
@@ -292,6 +331,9 @@ def build_document() -> Path:
         add_markdown_file(document, DOCS_DIR / filename)
         if index < len(SOURCE_FILES) - 1:
             document.add_section(WD_SECTION.NEW_PAGE)
+
+    document.add_section(WD_SECTION.NEW_PAGE)
+    add_scripts_appendix(document)
 
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     document.save(OUTPUT_FILE)

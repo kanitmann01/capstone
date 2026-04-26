@@ -4,7 +4,7 @@ from __future__ import annotations
 Core application service orchestrating the hybrid phishing detection pipeline.
 
 ``AppService`` is the central coordinator consumed by ``app.api``. It drives the
-full scan lifecycle—page extraction, legacy checks, structured ML scoring,
+full scan lifecycle-page extraction, legacy checks, structured ML scoring,
 FastText inference, result persistence, and model training/evaluation workflows.
 """
 
@@ -20,8 +20,8 @@ from pipeline.evaluation.compare_models import metrics_from_counts  # Project-lo
 from pipeline.evaluation.rules_baseline import score_rules  # Project-local: rules-based risk scoring
 from pipeline.extraction.html_parser import extract_page_snapshot  # Project-local: fetch and parse remote page
 from pipeline.modeling.fasttext_dataset import corpus_dedup_key  # Project-local: deduplication key generator
+from pipeline.modeling.fasttext_dataset import normalize_label_value  # Project-local: CSV label normalisation
 from pipeline.modeling.fasttext_dataset import serialize_labeled_snapshot  # Project-local: FastText labeled line formatter
-from pipeline.modeling.fasttext_dataset import serialize_snapshot  # Project-local: snapshot -> flat text
 from pipeline.modeling.fasttext_train import FastTextTrainingConfig  # Project-local: FastText hyperparameters
 from pipeline.modeling.fasttext_train import default_training_config  # Project-local: config factory
 from pipeline.modeling.fasttext_train import train_fasttext_model  # Project-local: FastText trainer
@@ -63,7 +63,7 @@ class AppService:
         snapshot = extract_page_snapshot(raw_url, self.scanner_settings)
         target = normalize_input_url(raw_url)
         rules = score_rules(snapshot)
-        fasttext_prediction = self.detector.predict_text(serialize_snapshot(snapshot))
+        fasttext_prediction = self.detector.predict_snapshot(snapshot)
         legacy_checks = self._run_legacy_checks(target, snapshot)
         structured_ml = self._run_structured_ml(target, legacy_checks)
         brand_recognition = self._run_brand_recognition(raw_url)
@@ -597,18 +597,20 @@ class AppService:
 
     def _read_labeled_rows(self, input_path: Path) -> list[dict[str, Any]]:
         """Read a CSV and return rows with url and is_phishing booleans."""
-        with input_path.open("r", newline="", encoding="utf-8") as handle:
+        with input_path.open("r", newline="", encoding="utf-8-sig") as handle:
             reader = csv.DictReader(handle)
             rows = []
-            for row in reader:
+            for row_number, row in enumerate(reader, start=2):
                 url = (row.get("url") or "").strip()
-                label_value = str(row.get("is_phishing") or "").strip().lower()
                 if not url:
                     continue
+                label_text = normalize_label_value(row.get("is_phishing"))
+                if label_text is None:
+                    raise ValueError(f"Invalid is_phishing label on row {row_number}: {row.get('is_phishing')!r}")
                 rows.append(
                     {
                         "url": url,
-                        "is_phishing": label_value in {"1", "true", "t", "yes", "y", "phishing"},
+                        "is_phishing": label_text == "phishing",
                     }
                 )
         return rows

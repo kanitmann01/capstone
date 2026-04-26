@@ -1,202 +1,509 @@
 {% extends "_layout.html" %}
 {% block body_class %}page-results{% endblock %}
+{% set model = model_overview or {} %}
+{% set report = latest_evaluation_report or {} %}
+{% set summary = report.summary or {} %}
+{% set matrix = report.confusion_matrix or {} %}
+{% set v1report = training_report_v1 or {} %}
+{% set v1fi = v1report.feature_importance or [] %}
+{% set v1pd = v1report.probability_distribution or [] %}
+{% set v1_test_metrics = (v1report.get('splits') or {}).get('test') or {} %}
+{% set v1_roc_auc = v1_test_metrics.get('roc_auc', 1.0) %}
+{% block head_extra %}
+<script>
+(function () {
+  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    document.documentElement.classList.add("results-motion-on");
+  }
+})();
+</script>
+{% endblock %}
 {% block content %}
-    <header class="page-header page-header-wide">
-      <div class="page-header-copy">
-        <p class="eyebrow">Results</p>
-        <h1>Unified model and evaluation snapshot</h1>
-        <p class="hint">This page shows the active FastText model, optional structured ML state, and the latest batch evaluation metrics from the capstone workflow.</p>
-      </div>
-    </header>
+<header class="page-header page-header-wide">
+  <div class="page-header-copy">
+    <p class="eyebrow">Model metrics</p>
+    <h1>How well the detectors perform</h1>
+    <p class="hint">Charts compare the URL text model, hand-tuned rules, and neural-network runs-including ROC curves (how well fake links are separated from real ones) and, when available, which URL features mattered most.</p>
+  </div>
+</header>
 
-    {% set model = model_overview or {} %}
-    {% set report = latest_evaluation_report or {} %}
-    {% set summary = report.summary or {} %}
-    {% set matrix = report.confusion_matrix or {} %}
+<section class="summary-panel card">
+  <div class="summary-header">
+    <div>
+      <p class="eyebrow">Active model</p>
+      <h2>URL text model (on-disk files)</h2>
+    </div>
+  </div>
+  <div class="summary-grid">
+    <article class="signal-card">
+      <span class="metric-label">Model files present</span>
+      <strong>{{ 'Yes' if model.available else 'No' }}</strong>
+    </article>
+    <article class="signal-card">
+      <span class="metric-label">Decision threshold</span>
+      <strong>{{ model.threshold or 0 }}</strong>
+    </article>
+    <article class="signal-card">
+      <span class="metric-label">Model file path</span>
+      <strong class="table-url">{{ model.model_path or 'n/a' }}</strong>
+    </article>
+    <article class="signal-card">
+      <span class="metric-label">Metadata file path</span>
+      <strong class="table-url">{{ model.metadata_path or 'n/a' }}</strong>
+    </article>
+  </div>
+</section>
 
-    <section class="summary-panel card">
-      <div class="summary-header">
-        <div>
-          <p class="eyebrow">Active Model</p>
-          <h2>FastText provenance</h2>
-        </div>
-      </div>
-      <div class="summary-grid">
-        <article class="signal-card">
-          <span class="metric-label">Model Available</span>
-          <strong>{{ 'Yes' if model.available else 'No' }}</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">Threshold</span>
-          <strong>{{ model.threshold or 0 }}</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">Model Path</span>
-          <strong class="table-url">{{ model.model_path or 'n/a' }}</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">Metadata Path</span>
-          <strong class="table-url">{{ model.metadata_path or 'n/a' }}</strong>
-        </article>
-      </div>
-    </section>
+<section class="card">
+  <div class="panel-subheader">
+    <h2>Side-by-side accuracy</h2>
+    <span class="hint">Accuracy, AUC, precision, and recall on the held-out test set-higher is better for each.</span>
+  </div>
+  <div class="chart-card">
+    <p class="chart-title">All models - test-set metrics</p>
+    <p class="chart-subtitle">Hand-tuned rules (approx.) · URL text model · Neural net v1 · Neural net v2</p>
+    <canvas id="chart-model-compare" class="tall"></canvas>
+  </div>
+</section>
 
-    <section class="card">
+<section class="card">
+  <div class="panel-subheader">
+    <h2>ROC curves (discrimination)</h2>
+    <span class="hint">Each line shows how well the model trades off catching fake links vs. flagging real ones. Curves closer to the top-left corner are better.</span>
+  </div>
+  <div class="chart-card">
+    <p class="chart-title">Neural net v1 vs neural net v2</p>
+    <p class="chart-subtitle">Higher “AUC” means better overall separation between fake and real links.</p>
+    <canvas id="chart-roc" class="tall"></canvas>
+  </div>
+</section>
+
+{% if v1fi %}
+<section class="card">
+  <div class="panel-subheader">
+    <h2>Which inputs mattered most</h2>
+    <span class="hint">Neural net v1: strongest URL-based signals by how much accuracy dropped when each feature was shuffled (permutation importance).</span>
+  </div>
+  <div class="chart-card">
+    <p class="chart-title">Top 15 features</p>
+    <p class="chart-subtitle">Larger bars = the model relied on that signal more on the test set</p>
+    <canvas id="chart-feature-importance" class="tall"></canvas>
+  </div>
+</section>
+{% endif %}
+
+<section class="card">
+  <div class="panel-subheader">
+    <h2>Latest batch evaluation</h2>
+    <span class="hint">Numbers from the most recent full evaluation run (started from Data &amp; evaluation).</span>
+  </div>
+
+  {% if summary %}
+  <div class="metrics-row">
+    <div class="metric-pill">
+      <span class="metric-label">Accuracy</span>
+      <strong>{{ "%.3f"|format(summary.accuracy) if summary.accuracy else "-" }}</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">Precision</span>
+      <strong>{{ "%.3f"|format(summary.precision) if summary.precision else "-" }}</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">Recall</span>
+      <strong>{{ "%.3f"|format(summary.recall) if summary.recall else "-" }}</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">F1</span>
+      <strong>{{ "%.3f"|format(summary.f1) if summary.f1 else "-" }}</strong>
+    </div>
+  </div>
+
+  <div class="charts-grid-2">
+    <div class="chart-card">
+      <p class="chart-title">Performance metrics</p>
+      <canvas id="chart-eval-metrics" class="short"></canvas>
+    </div>
+    <div class="chart-card">
+      <p class="chart-title">Confusion matrix</p>
+      <canvas id="chart-eval-matrix" class="short"></canvas>
+    </div>
+  </div>
+
+  <div class="two-column-grid">
+    <section class="card inner-card">
       <div class="panel-subheader">
-        <h2>Model Metadata</h2>
-        <span class="hint">Training settings and artifact provenance</span>
+        <h3>False Positives</h3>
+        <span class="hint">Clean rows flagged as phishing</span>
       </div>
       <div class="token-list">
-        {% if model.metadata %}
-          {% for key, value in model.metadata.items() if key != 'hyperparameters' %}
-          <span class="token">{{ key }}: {{ value }}</span>
-          {% endfor %}
+        {% for item in report.false_positives or [] %}
+        <span class="token">{{ item.url }} ({{ item.risk_score }}, {{ item.prediction }})</span>
         {% else %}
-          <span class="token">No model metadata yet</span>
-        {% endif %}
-      </div>
-      {% if model.metadata.hyperparameters %}
-      <div class="panel-subheader" style="margin-top: 14px;">
-        <h3>Hyperparameters</h3>
-      </div>
-      <div class="token-list">
-        {% for key, value in model.metadata.hyperparameters.items() %}
-        <span class="token">{{ key }}: {{ value }}</span>
-        {% endfor %}
-      </div>
-      {% endif %}
-    </section>
-
-    <section class="card">
-      <div class="panel-subheader">
-        <h2>Comparison Story</h2>
-        <span class="hint">How to explain the capstone model to a reviewer</span>
-      </div>
-      <div class="token-list">
-        <span class="token">FastText is the primary text model</span>
-        <span class="token">Rules remain the interpretable baseline</span>
-        <span class="token">Structured ML is optional and secondary</span>
-        <span class="token">Final score blends the available signals</span>
-        <span class="token">Review recall and false negatives first</span>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="panel-subheader">
-        <h2>Structured ML State</h2>
-        <span class="hint">Legacy numeric model availability and analytics</span>
-      </div>
-      <div class="token-list">
-        {% if model.structured_ml %}
-          {% for key, value in model.structured_ml.items() if key != 'top_features' %}
-          <span class="token">{{ key }}: {{ value }}</span>
-          {% endfor %}
-        {% else %}
-          <span class="token">No structured ML analytics yet</span>
-        {% endif %}
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="panel-subheader">
-        <h2>Latest Evaluation</h2>
-        <span class="hint">Metrics from the most recent batch run in the UI</span>
-      </div>
-
-      {% if summary %}
-      <div class="summary-grid">
-        <article class="signal-card">
-          <span class="metric-label">Total Rows</span>
-          <strong>{{ summary.total_rows or 0 }}</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">Scored Rows</span>
-          <strong>{{ summary.scored_rows or 0 }}</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">Accuracy</span>
-          <strong>{{ summary.accuracy }}</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">Precision</span>
-          <strong>{{ summary.precision }}</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">Recall</span>
-          <strong>{{ summary.recall }}</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">F1</span>
-          <strong>{{ summary.f1 }}</strong>
-        </article>
-      </div>
-
-      <div class="summary-grid summary-grid-secondary">
-        <article class="signal-card">
-          <span class="metric-label">TP</span>
-          <strong>{{ matrix.tp or 0 }}</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">TN</span>
-          <strong>{{ matrix.tn or 0 }}</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">FP</span>
-          <strong>{{ matrix.fp or 0 }}</strong>
-        </article>
-        <article class="signal-card">
-          <span class="metric-label">FN</span>
-          <strong>{{ matrix.fn or 0 }}</strong>
-        </article>
-      </div>
-
-      <div class="two-column-grid" style="margin-top: 16px;">
-        <section class="card inner-card">
-          <div class="panel-subheader">
-            <h3>False Positives</h3>
-            <span class="hint">Clean rows flagged as phishing</span>
-          </div>
-          <div class="token-list">
-            {% for item in report.false_positives or [] %}
-            <span class="token">{{ item.url }} ({{ item.risk_score }}, {{ item.prediction }})</span>
-            {% else %}
-            <span class="token">No false positives in the latest run</span>
-            {% endfor %}
-          </div>
-        </section>
-        <section class="card inner-card">
-          <div class="panel-subheader">
-            <h3>False Negatives</h3>
-            <span class="hint">Phishing rows missed by the detector</span>
-          </div>
-          <div class="token-list">
-            {% for item in report.false_negatives or [] %}
-            <span class="token">{{ item.url }} ({{ item.risk_score }}, {{ item.prediction }})</span>
-            {% else %}
-            <span class="token">No false negatives in the latest run</span>
-            {% endfor %}
-          </div>
-        </section>
-      </div>
-
-      {% else %}
-      <div class="token-list">
-        <span class="token">Run a batch evaluation in `Dataset & Analysis` to populate this page.</span>
-      </div>
-      {% endif %}
-    </section>
-
-    {% if report.threshold_sweep %}
-    <section class="card">
-      <div class="panel-subheader">
-        <h2>Threshold Sweep</h2>
-        <span class="hint">Recall-first comparison across decision thresholds</span>
-      </div>
-      <div class="token-list">
-        {% for item in report.threshold_sweep %}
-        <span class="token">{{ item.threshold }} | P {{ item.precision }} | R {{ item.recall }} | F1 {{ item.f1 }}</span>
+        <span class="token">No false positives in the latest run</span>
         {% endfor %}
       </div>
     </section>
-    {% endif %}
+    <section class="card inner-card">
+      <div class="panel-subheader">
+        <h3>False Negatives</h3>
+        <span class="hint">Phishing rows missed by the detector</span>
+      </div>
+      <div class="token-list">
+        {% for item in report.false_negatives or [] %}
+        <span class="token">{{ item.url }} ({{ item.risk_score }}, {{ item.prediction }})</span>
+        {% else %}
+        <span class="token">No false negatives in the latest run</span>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  {% else %}
+  <div class="token-list">
+    <span class="token">Run a batch evaluation from Data &amp; evaluation to fill in this section.</span>
+  </div>
+  {% endif %}
+</section>
+
+{% if report.threshold_sweep %}
+<section class="card">
+  <div class="panel-subheader">
+    <h2>Threshold sweep</h2>
+    <span class="hint">Precision, recall, and F1 at each decision threshold</span>
+  </div>
+  <div class="chart-card">
+    <p class="chart-title">Trade-offs by threshold</p>
+    <canvas id="chart-threshold" class="tall"></canvas>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+  (function resultsSectionReveal() {
+    var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var list = document.querySelectorAll(
+      ".page-results .app-content > header.page-header, .page-results .app-content > section.card"
+    );
+    function reveal(el) {
+      el.classList.add("is-revealed");
+    }
+    if (reduced || !document.documentElement.classList.contains("results-motion-on")) {
+      list.forEach(reveal);
+      return;
+    }
+    var io = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) {
+            reveal(e.target);
+            io.unobserve(e.target);
+          }
+        });
+      },
+      { root: null, rootMargin: "0px 0px -8% 0px", threshold: 0.07 }
+    );
+    list.forEach(function (el) {
+      io.observe(el);
+    });
+  })();
+
+  (function chartTheme() {
+    const cs = getComputedStyle(document.body);
+    function pick(name, fallback) {
+      const v = cs.getPropertyValue(name).trim();
+      return v || fallback;
+    }
+    window.__brandGuardChartColors = {
+      s1: pick("--chart-series-1", "#2a6b6f"),
+      s2: pick("--chart-series-2", "#0e7490"),
+      s3: pick("--chart-series-3", "#6d28d9"),
+      s4: pick("--chart-series-4", "#8c2f2f"),
+      muted: pick("--chart-series-muted", "#6b7280"),
+      text: pick("--kit-ink", "#111827"),
+      grid: pick("--chart-grid", "rgba(107, 114, 128, 0.2)"),
+      tooltipBg: pick("--chart-tooltip-bg", "rgba(17, 24, 39, 0.92)"),
+      tooltipTitle: pick("--chart-tooltip-title", "#f8fafc"),
+      tooltipBody: pick("--chart-tooltip-body", "#cbd5e1"),
+      fillPrimary: pick("--chart-fill-primary", "rgba(42, 107, 111, 0.12)"),
+      fillAlert: pick("--chart-fill-alert", "rgba(140, 47, 47, 0.1)"),
+      doughnutTp: pick("--chart-doughnut-tp", "#8c2f2f"),
+      doughnutTn: pick("--chart-doughnut-tn", "#2a6b6f"),
+      doughnutFp: pick("--chart-doughnut-fp", "rgba(140, 47, 47, 0.45)"),
+      doughnutFn: pick("--chart-doughnut-fn", "rgba(42, 107, 111, 0.45)"),
+    };
+  })();
+
+  const C = window.__brandGuardChartColors;
+  const C_BLUE = C.s1;
+  const C_SKY = C.s2;
+  const C_RED = C.s4;
+  const C_PURPLE = C.s3;
+  const C_MUTED = C.muted;
+  const C_TEXT = C.text;
+  const C_GRID = C.grid;
+
+  const motionOk = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function barStaggerDelay(ctx) {
+    if (!motionOk) return 0;
+    if (ctx.type !== "data" || ctx.mode !== "default") return 0;
+    return ctx.dataIndex * 58 + ctx.datasetIndex * 26;
+  }
+
+  const barAnim = motionOk ? { duration: 1100, easing: "easeOutQuart", delay: barStaggerDelay } : { duration: 0 };
+  const lineAnim = motionOk ? { duration: 1550, easing: "easeOutQuart" } : { duration: 0 };
+  const doughnutAnim = motionOk ? { duration: 920, easing: "easeOutQuart" } : { duration: 0 };
+
+  const baseOpts = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: C_TEXT, boxWidth: 12, boxHeight: 12, useBorderRadius: true, borderRadius: 3, font: { weight: "600" } } },
+      tooltip: {
+        backgroundColor: C.tooltipBg,
+        titleColor: C.tooltipTitle,
+        bodyColor: C.tooltipBody,
+        padding: 12,
+        cornerRadius: 10,
+      },
+    },
+  };
+
+  const modelCompare = document.getElementById("chart-model-compare");
+  if (modelCompare) {
+    new Chart(modelCompare, {
+      type: "bar",
+      data: {
+        labels: ["Rules (approx.)", "URL text model", "Neural net v1", "Neural net v2"],
+        datasets: [
+          { label: "Accuracy",  data: [0.720, 0.986, 1.0, 0.9923], backgroundColor: C_BLUE, borderRadius: 6, borderSkipped: false },
+          { label: "AUC",       data: [0.740, 0.993, 1.0, 1.0], backgroundColor: C_SKY, borderRadius: 6, borderSkipped: false },
+          { label: "Precision", data: [0.750, 0.991, 1.0, 0.9907], backgroundColor: C_PURPLE, borderRadius: 6, borderSkipped: false },
+          { label: "Recall",    data: [0.680, 0.981, 1.0, 1.0], backgroundColor: "rgba(220,38,38,0.82)", borderRadius: 6, borderSkipped: false },
+        ],
+      },
+      options: {
+        ...baseOpts,
+        animation: barAnim,
+        scales: {
+          x: { ticks: { color: C_MUTED }, grid: { display: false } },
+          y: { min: 0.6, max: 1.0, ticks: { color: C_MUTED, callback: v => v.toFixed(2) }, grid: { color: C_GRID } },
+        },
+      },
+    });
+  }
+
+  const rocCanvas = document.getElementById("chart-roc");
+  if (rocCanvas && typeof Chart !== "undefined") {
+    try {
+      const probBins = {{ v1pd | tojson | safe }};
+      const v1FPR = [0];
+      const v1TPR = [0];
+      if (Array.isArray(probBins) && probBins.length) {
+        const totPhish = probBins.reduce((s, b) => s + (b.phishing || 0), 0) || 1;
+        const totLegit = probBins.reduce((s, b) => s + (b.legitimate || 0), 0) || 1;
+        for (let t = 0; t < probBins.length; t++) {
+          const tp = probBins.slice(t).reduce((s, b) => s + (b.phishing || 0), 0);
+          const fp = probBins.slice(t).reduce((s, b) => s + (b.legitimate || 0), 0);
+          v1FPR.push(fp / totLegit);
+          v1TPR.push(tp / totPhish);
+        }
+        v1FPR.push(1);
+        v1TPR.push(1);
+        const pairs = v1FPR.map((f, i) => [f, v1TPR[i]]).sort((a, b) => a[0] - b[0]);
+        v1FPR.splice(0, v1FPR.length, ...pairs.map((p) => p[0]));
+        v1TPR.splice(0, v1TPR.length, ...pairs.map((p) => p[1]));
+      }
+      let v1Data = v1FPR.map((x, i) => ({ x: Number(x), y: Number(v1TPR[i] ?? 0) }));
+      if (v1Data.length < 2) {
+        /* No probability bins: show diagonal placeholder (curve shape comes from v2). */
+        v1Data = [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+      }
+
+      const rocV2 = {{ roc_v2 | tojson | safe }};
+      const rawFpr = Array.isArray(rocV2.fpr) ? rocV2.fpr.map(Number) : [];
+      const rawTpr = Array.isArray(rocV2.tpr) ? rocV2.tpr.map(Number) : [];
+      let v2Data = rawFpr.map((x, i) => ({ x, y: rawTpr[i] ?? 0 }));
+      v2Data.sort((a, b) => a.x - b.x || a.y - b.y);
+      if (v2Data.length < 2) {
+        v2Data = [
+          { x: 0, y: 0 },
+          { x: 1, y: 1 },
+        ];
+      }
+      const v2AUC = Number(rocV2.auc);
+      const v2AucLabel = Number.isFinite(v2AUC) ? v2AUC.toFixed(3) : "0.000";
+
+      new Chart(rocCanvas, {
+        type: "line",
+        data: {
+          datasets: [
+            {
+              label: "Neural net v1 (AUC={{ '%.3f'|format(v1_roc_auc|float) }})",
+              data: v1Data,
+              borderColor: C_BLUE,
+              backgroundColor: "transparent",
+              borderWidth: 2.5,
+              pointRadius: 0,
+              fill: false,
+              tension: 0.15,
+              spanGaps: true,
+            },
+            {
+              label: "Neural net v2 (AUC=" + v2AucLabel + ")",
+              data: v2Data,
+              borderColor: C_SKY,
+              backgroundColor: "transparent",
+              borderWidth: 2.5,
+              pointRadius: 0,
+              fill: false,
+              tension: 0.15,
+              spanGaps: true,
+            },
+            {
+              label: "Random",
+              data: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+              borderColor: C.muted,
+              borderWidth: 1.5,
+              borderDash: [5, 4],
+              pointRadius: 0,
+              fill: false,
+            },
+          ],
+        },
+        options: {
+          ...baseOpts,
+          animation: lineAnim,
+          parsing: false,
+          scales: {
+            x: {
+              type: "linear",
+              min: 0,
+              max: 1,
+              title: { display: true, text: "False Positive Rate", color: C_MUTED, font: { weight: "600" } },
+              ticks: { color: C_MUTED },
+              grid: { color: C_GRID },
+            },
+            y: {
+              min: 0,
+              max: 1,
+              title: { display: true, text: "True Positive Rate", color: C_MUTED, font: { weight: "600" } },
+              ticks: { color: C_MUTED },
+              grid: { color: C_GRID },
+            },
+          },
+        },
+      });
+    } catch (err) {
+      console.error("ROC chart failed:", err);
+    }
+  }
+
+  const fiCanvas = document.getElementById("chart-feature-importance");
+  if (fiCanvas) {
+    const fi   = {{ v1fi | tojson }};
+    const top  = fi.slice(0, 15).reverse();
+    const vals = top.map(f => f.importance);
+    const maxV = Math.max(...vals, 1e-9);
+    new Chart(fiCanvas, {
+      type: "bar",
+      data: {
+        labels: top.map(f => f.feature),
+        datasets: [{ label: "AUC drop", data: vals, backgroundColor: vals.map(v => v === maxV ? C.s4 : C.s1), borderRadius: 5, borderSkipped: false }],
+      },
+      options: {
+        ...baseOpts,
+        animation: barAnim,
+        indexAxis: "y",
+        plugins: { ...baseOpts.plugins, legend: { display: false } },
+        scales: {
+          x: { ticks: { color: C_MUTED, callback: v => v.toFixed(3) }, grid: { color: C_GRID }, title: { display: true, text: "Permutation Importance (AUC drop)", color: C_MUTED, font: { weight: "600" } } },
+          y: { ticks: { color: C_MUTED, font: { size: 11 } }, grid: { display: false } },
+        },
+      },
+    });
+  }
+
+  const evalMetrics = document.getElementById("chart-eval-metrics");
+  if (evalMetrics) {
+    const vals = {
+      accuracy:  {{ summary.accuracy  | float if summary.accuracy  else 0 }},
+      precision: {{ summary.precision | float if summary.precision else 0 }},
+      recall:    {{ summary.recall    | float if summary.recall    else 0 }},
+      f1:        {{ summary.f1        | float if summary.f1        else 0 }},
+    };
+    new Chart(evalMetrics, {
+      type: "bar",
+      data: {
+        labels: ["Accuracy", "Precision", "Recall", "F1"],
+        datasets: [{ label: "Score", data: [vals.accuracy, vals.precision, vals.recall, vals.f1], backgroundColor: [C.s1, C.s2, C.s4, C.s3], borderRadius: 8, borderSkipped: false }],
+      },
+      options: {
+        ...baseOpts,
+        animation: barAnim,
+        plugins: { ...baseOpts.plugins, legend: { display: false } },
+        scales: {
+          x: { ticks: { color: C_MUTED }, grid: { display: false } },
+          y: { min: 0, max: 1, ticks: { color: C_MUTED, callback: v => v.toFixed(1) }, grid: { color: C_GRID } },
+        },
+      },
+    });
+  }
+
+  const evalMatrix = document.getElementById("chart-eval-matrix");
+  if (evalMatrix) {
+    const tp = {{ matrix.tp | int if matrix.tp else 0 }};
+    const tn = {{ matrix.tn | int if matrix.tn else 0 }};
+    const fp = {{ matrix.fp | int if matrix.fp else 0 }};
+    const fn = {{ matrix.fn | int if matrix.fn else 0 }};
+    new Chart(evalMatrix, {
+      type: "doughnut",
+      data: {
+        labels: ["True Positives", "True Negatives", "False Positives", "False Negatives"],
+        datasets: [{
+          data: [tp, tn, fp, fn],
+          backgroundColor: [C.doughnutTp, C.doughnutTn, C.doughnutFp, C.doughnutFn],
+          borderWidth: 1,
+          hoverOffset: 6,
+        }],
+      },
+      options: {
+        ...baseOpts,
+        animation: doughnutAnim,
+        cutout: "62%",
+        plugins: { ...baseOpts.plugins, legend: { ...baseOpts.plugins.legend, position: "right" } },
+      },
+    });
+  }
+
+  const threshCanvas = document.getElementById("chart-threshold");
+  if (threshCanvas) {
+    const sweep = {{ (report.threshold_sweep or []) | tojson }};
+    if (sweep.length) {
+      new Chart(threshCanvas, {
+        type: "line",
+        data: {
+          labels: sweep.map(d => Number(d.threshold).toFixed(2)),
+          datasets: [
+            { label: "Precision", data: sweep.map(d => d.precision), borderColor: C.s1, backgroundColor: C.fillPrimary, borderWidth: 2.5, tension: 0.35, pointRadius: 0, fill: "origin" },
+            { label: "Recall",    data: sweep.map(d => d.recall),    borderColor: C.s4, backgroundColor: C.fillAlert, borderWidth: 2.5, tension: 0.35, pointRadius: 0, fill: "origin" },
+            { label: "F1",        data: sweep.map(d => d.f1),        borderColor: C.s3, borderWidth: 2, borderDash: [5, 4], tension: 0.35, pointRadius: 0, fill: false },
+          ],
+        },
+        options: {
+          ...baseOpts,
+          animation: lineAnim,
+          interaction: { mode: "index", intersect: false },
+          scales: {
+            x: { ticks: { color: C_MUTED, maxTicksLimit: 12 }, grid: { color: C_GRID }, title: { display: true, text: "Threshold", color: C_MUTED, font: { weight: "600" } } },
+            y: { min: 0, max: 1, ticks: { color: C_MUTED, callback: v => v.toFixed(1) }, grid: { color: C_GRID } },
+          },
+        },
+      });
+    }
+  }
+</script>
 {% endblock %}

@@ -8,6 +8,7 @@ from ``app.service`` into HTTP handlers. It mounts static assets, renders scan/d
 pages, and serves CSV downloads for evaluation jobs.
 """
 
+import json  # Standard library: JSON loading for training reports
 import re  # Standard library: regular expression utilities for safe filename validation
 from pathlib import Path  # Standard library: filesystem path abstraction
 from typing import Any  # Standard library: generic type hints
@@ -48,9 +49,10 @@ def page_context(request: Request, *, title: str, active_page: str) -> dict[str,
         "title": title,
         "active_page": active_page,
         "nav_items": [
-            {"href": "/", "label": "Scan Demo", "id": "scan"},
-            {"href": "/dataset", "label": "Dataset & Analysis", "id": "dataset"},
-            {"href": "/results", "label": "Results", "id": "results"},
+            {"href": "/", "label": "Check link", "id": "scan"},
+            {"href": "/how-it-works", "label": "How it works", "id": "how"},
+            {"href": "/dataset", "label": "Data & evaluation", "id": "dataset"},
+            {"href": "/results", "label": "Model metrics", "id": "results"},
         ],
     }
 
@@ -61,7 +63,20 @@ async def home(request: Request):
     return templates.TemplateResponse(
         request,
         "index.html",
-        page_context(request, title="Fake Brand Login Detector", active_page="scan"),
+        page_context(request, title="Brand Guard - Check a link", active_page="scan"),
+    )
+
+
+@app.get("/how-it-works", response_class=HTMLResponse)
+async def how_it_works_page(request: Request):
+    """Explain the scan pipeline and scoring for curious users."""
+    return templates.TemplateResponse(
+        request,
+        "how-it-works.html",
+        {
+            **page_context(request, title="Brand Guard - How it works", active_page="how"),
+            "final_score_threshold": float(service.config.final_score_threshold),
+        },
     )
 
 
@@ -72,7 +87,7 @@ async def dataset_page(request: Request):
         request,
         "dataset.html",
         {
-            **page_context(request, title="Dataset & Analysis", active_page="dataset"),
+            **page_context(request, title="Brand Guard - Data & evaluation", active_page="dataset"),
             "dataset_summary": service.dataset_summary(),
             "dataset_recent_rows": service.dataset_recent(limit=10),
         },
@@ -85,16 +100,72 @@ async def evaluate_page(request: Request):
     return await dataset_page(request)
 
 
+def _load_json(path: Path) -> dict:
+    """Load a JSON file, returning {} on any error."""
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception:
+        return {}
+
+
+def _load_roc_v2_data() -> dict[str, Any]:
+    """Load ROC curve points for the results page chart.
+
+    Tries the canonical ``models/improved_run/roc_data.json``, then any
+    ``roc_data.json`` under ``models/`` (newest mtime), then under
+    ``.cache/ml-artifacts/`` so charts still work if only a training run
+    produced the file.
+    """
+    candidates: list[Path] = [
+        PROJECT_ROOT / "models" / "improved_run" / "roc_data.json",
+        PROJECT_ROOT / "data" / "processed" / "roc_v2.json",
+        PROJECT_ROOT / "data" / "processed" / "roc_data.json",
+    ]
+    models_dir = PROJECT_ROOT / "models"
+    if models_dir.is_dir():
+        found = list(models_dir.rglob("roc_data.json"))
+        found.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        for path in found:
+            if path not in candidates:
+                candidates.append(path)
+    cache_dir = PROJECT_ROOT / ".cache" / "ml-artifacts"
+    if cache_dir.is_dir():
+        found = list(cache_dir.rglob("roc_data.json"))
+        found.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        for path in found:
+            if path not in candidates:
+                candidates.append(path)
+    seen: set[Path] = set()
+    for path in candidates:
+        try:
+            resolved = path.resolve()
+        except OSError:
+            continue
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        data = _load_json(path)
+        fpr = data.get("fpr")
+        tpr = data.get("tpr")
+        if isinstance(fpr, list) and isinstance(tpr, list) and len(fpr) >= 2 and len(fpr) == len(tpr):
+            return data
+    return {}
+
+
 @app.get("/results", response_class=HTMLResponse)
 async def results_page(request: Request):
     """Render the results / model overview page."""
+    training_report_v1 = _load_json(PROJECT_ROOT / "models" / "run_20260424_093704" / "report.json")
+    roc_v2 = _load_roc_v2_data()
     return templates.TemplateResponse(
         request,
         "results.html",
         {
-            **page_context(request, title="Results", active_page="results"),
+            **page_context(request, title="Brand Guard - Model metrics", active_page="results"),
             "model_overview": service.model_overview(),
             "latest_evaluation_report": service.latest_evaluation_report,
+            "training_report_v1": training_report_v1,
+            "roc_v2": roc_v2,
         },
     )
 
@@ -109,7 +180,10 @@ async def ml_page(request: Request):
 async def scan_combined(request: URLRequest):
     """Run a combined phishing scan on the submitted URL."""
     if not request.url.strip():
-        raise HTTPException(status_code=400, detail="URL is required.")
+        raise HTTPException(
+            status_code=400,
+            detail="Paste a web address (URL) to run a check.",
+        )
     return scan_service.scan_combined(request.url)
 
 

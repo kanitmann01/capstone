@@ -6,6 +6,7 @@ from scanner.normalization import normalize_input_url
 from scanner.content import ContentScanner
 from scanner.settings import ScannerSettings
 from scanner.ml_features import extract_features
+from pipeline.evaluation.rules_baseline import score_rules
 
 
 class DummyResponse:
@@ -52,6 +53,69 @@ def test_content_scanner_detects_brand_impersonation(monkeypatch, tmp_path):
     assert features["brand_mismatch_flag"] == 1.0
     assert features["free_host_flag"] == 1.0
     assert features["suspicious_phrase_count"] >= 1.0
+
+
+def test_content_scanner_does_not_promote_sso_button_to_primary_brand(monkeypatch):
+    html = """
+    <html>
+      <head><title>Example Portal Login</title></head>
+      <body>
+        <nav><a href="/">Home</a><a href="/help">Help</a></nav>
+        <h1>Welcome back</h1>
+        <form action="https://accounts.example.com/session">
+          <input type="email" />
+          <input type="password" />
+          <button>Sign in</button>
+        </form>
+        <button>Sign in with Google</button>
+      </body>
+    </html>
+    """
+
+    def fake_get(url, timeout):
+        del url, timeout
+        return DummyResponse(html)
+
+    monkeypatch.setattr("scanner.content.requests.get", fake_get)
+
+    target = normalize_input_url("https://accounts.example.com/login")
+    result = ContentScanner(target, ScannerSettings()).run_checks()
+    rules = score_rules({"content": result})
+
+    assert result["status"] == "ok"
+    assert result["detected_brand"] == ""
+    assert result["brand_mismatch"] is False
+    assert result["form_action_mismatch"] is False
+    assert result["risk_score"] < 30
+    assert rules["risk_score"] < 30
+
+
+def test_content_scanner_same_host_form_action_is_not_mismatch(monkeypatch):
+    html = """
+    <html>
+      <head><title>Netflix Sign In</title></head>
+      <body>
+        <h1>Sign in to Netflix</h1>
+        <form action="https://netflix-login.vercel.app/session">
+          <input type="email" />
+          <input type="password" />
+        </form>
+      </body>
+    </html>
+    """
+
+    def fake_get(url, timeout):
+        del url, timeout
+        return DummyResponse(html)
+
+    monkeypatch.setattr("scanner.content.requests.get", fake_get)
+
+    target = normalize_input_url("https://netflix-login.vercel.app/signin")
+    result = ContentScanner(target, ScannerSettings()).run_checks()
+
+    assert result["detected_brand"] == "Netflix"
+    assert result["brand_mismatch"] is True
+    assert result["form_action_mismatch"] is False
 
 
 def test_brand_login_dataset_store_round_trip(tmp_path):

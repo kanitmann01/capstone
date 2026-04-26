@@ -27,6 +27,7 @@ from scanner.ml_features import FEATURE_FIELDS  # Project-local: ordered feature
 from scanner.ml_features import FEATURE_VERSION  # Project-local: feature schema version
 from scanner.ml_features import vectorize_features  # Project-local: feature dict -> numeric list
 from scanner.settings import ScannerSettings  # Project-local: scanner configuration
+from scanner.tensorflow_runtime import import_tensorflow_quietly  # Project-local: quiet TensorFlow import
 
 
 _TF_MODULE: Any | None = None
@@ -266,7 +267,7 @@ def _load_tensorflow() -> Any | None:
         return _TF_MODULE
     _TF_IMPORT_ATTEMPTED = True
     try:
-        import tensorflow as tf_module  # Third-party: deep learning framework; pyright: ignore[reportMissingImports]
+        tf_module = import_tensorflow_quietly()
     except ImportError:  # pragma: no cover - handled at runtime.
         _TF_MODULE = None
     else:

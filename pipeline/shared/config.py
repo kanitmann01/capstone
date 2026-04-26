@@ -27,11 +27,14 @@ class CapstoneConfig:
     evaluation_dir: Path
     request_timeout_seconds: int = 8
     fasttext_dim: int = 100
-    fasttext_epoch: int = 25
-    fasttext_lr: float = 0.4
-    fasttext_word_ngrams: int = 2
+    fasttext_epoch: int = 50
+    fasttext_lr: float = 0.2
+    fasttext_word_ngrams: int = 3
     fasttext_min_count: int = 1
     fasttext_loss: str = "softmax"
+    fasttext_autotune: bool = False
+    fasttext_autotune_duration: int = 60
+    fasttext_validation_ratio: float = 0.2
     fasttext_threshold: float = 0.5
     final_score_threshold: float = 30.0
 
@@ -69,11 +72,14 @@ class CapstoneConfig:
             evaluation_dir=evaluation_dir,
             request_timeout_seconds=_int_env("REQUEST_TIMEOUT_SECONDS", 8),
             fasttext_dim=_int_env("FASTTEXT_DIM", 100),
-            fasttext_epoch=_int_env("FASTTEXT_EPOCH", 25),
-            fasttext_lr=_float_env("FASTTEXT_LR", 0.4),
-            fasttext_word_ngrams=_int_env("FASTTEXT_WORD_NGRAMS", 2),
+            fasttext_epoch=_int_env("FASTTEXT_EPOCH", 50),
+            fasttext_lr=_float_env("FASTTEXT_LR", 0.2),
+            fasttext_word_ngrams=_int_env("FASTTEXT_WORD_NGRAMS", 3),
             fasttext_min_count=_int_env("FASTTEXT_MIN_COUNT", 1),
             fasttext_loss=os.getenv("FASTTEXT_LOSS", "softmax"),
+            fasttext_autotune=_bool_env("FASTTEXT_AUTOTUNE", False),
+            fasttext_autotune_duration=_int_env("FASTTEXT_AUTOTUNE_DURATION", 60),
+            fasttext_validation_ratio=_float_env("FASTTEXT_VALIDATION_RATIO", 0.2),
             fasttext_threshold=_float_env("FASTTEXT_THRESHOLD", 0.5),
             final_score_threshold=_float_env("FINAL_SCORE_THRESHOLD", 30.0),
         )
@@ -99,3 +105,11 @@ def _float_env(name: str, default: float) -> float:
         return float(value)
     except ValueError:
         return default
+
+
+def _bool_env(name: str, default: bool) -> bool:
+    """Safely parse a boolean environment variable."""
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "t", "yes", "y", "on"}

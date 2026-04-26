@@ -24,6 +24,7 @@ class ScannerSettings:
     phishtank_enabled: bool = True
     phishtank_data_url: str = "https://data.dev.phishtank.com/data/online-valid.json"
     phishtank_app_key: str = ""
+    netstar_base_url: str = "https://w4.netstar.dev"
     vt_enabled: bool = True
     vt_base_url: str = "https://netstar.one/vt"
     vt_pos_file: str = ""
@@ -75,6 +76,7 @@ class ScannerSettings:
                 "https://data.dev.phishtank.com/data/online-valid.json",
             ),
             phishtank_app_key=os.getenv("PHISHTANK_APP_KEY", ""),
+            netstar_base_url=os.getenv("NETSTAR_BASE_URL", "https://w4.netstar.dev"),
             vt_enabled=_bool_env("VT_ENABLED", True),
             vt_base_url=os.getenv("VT_BASE_URL", "https://netstar.one/vt"),
             vt_pos_file=os.getenv("VT_POS_FILE", ""),

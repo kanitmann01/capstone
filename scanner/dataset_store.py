@@ -3,8 +3,8 @@ from __future__ import annotations
 """
 SQLite persistence layer for scan snapshots and dataset records.
 
-Provides ``SnapshotRecord``—an immutable dataclass for snapshot
-metadata—and ``BrandLoginDatasetStore`` which manages the SQLite
+Provides ``SnapshotRecord``-an immutable dataclass for snapshot
+metadata-and ``BrandLoginDatasetStore`` which manages the SQLite
 schema, deduplication, and CRUD operations.
 """
 

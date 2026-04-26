@@ -25,6 +25,7 @@ from scanner.ml_features import build_feature_row  # Project-local: row assembly
 from scanner.ml_features import extract_features  # Project-local: structured feature engineering
 from scanner.normalization import normalize_input_url  # Project-local: URL canonicalisation
 from scanner.settings import ScannerSettings  # Project-local: scanner configuration
+from scanner.tensorflow_runtime import import_tensorflow_quietly  # Project-local: quiet TensorFlow import
 
 TRUTHY_VALUES = {"1", "true", "t", "yes", "y"}
 FALSY_VALUES = {"0", "false", "f", "no", "n"}
@@ -264,7 +265,7 @@ def _parse_hidden_units(raw: Any) -> tuple[int, ...]:
 def describe_tensorflow_runtime() -> dict[str, Any]:
     """Return metadata about the TensorFlow installation and available devices."""
     try:
-        import tensorflow as tf  # pyright: ignore[reportMissingImports]
+        tf = import_tensorflow_quietly()
     except Exception as exc:  # pragma: no cover - depends on environment.
         return {
             "available": False,
@@ -446,7 +447,7 @@ def train_tensorflow_from_dataset(
     try:
         import numpy as np
         import pandas as pd
-        import tensorflow as tf  # pyright: ignore[reportMissingImports]
+        tf = import_tensorflow_quietly()
         from sklearn.metrics import accuracy_score
         from sklearn.metrics import confusion_matrix
         from sklearn.metrics import f1_score
@@ -915,7 +916,7 @@ def train_from_labeled_csv(
 
 def _resolve_tf_device(device: str) -> str:
     """Map a device selector (auto, cpu, gpu:N) to a TensorFlow device string."""
-    import tensorflow as tf  # pyright: ignore[reportMissingImports]
+    tf = import_tensorflow_quietly()
 
     selected = str(device or "auto").strip().lower()
     gpus = tf.config.list_physical_devices("GPU")
