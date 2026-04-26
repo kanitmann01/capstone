@@ -1,16 +1,18 @@
-# Fake Brand Login Detector
+# Brand Guard (Fake Brand Login Detector)
 
-Dataset-first FastAPI capstone for detecting fake brand login pages before anyone signs in. It combines HTML/text inspection, host clues, brand-mismatch signals, rules baselines, and a FastText primary model into a single explainable verdict.
+Dataset-first **FastAPI** app for triaging suspicious links and fake brand login pages before anyone signs in. The **web UI** is branded **Brand Guard**; the stack combines a live page snapshot, interpretable rules, FastText text scoring, host heuristics, TLS and domain-age signals, optional threat-intel context, structured ML features, and domain-only brand recognition into one **explainable composite score** and verdict.
 
 ## Key features
 
-- **Single-scan web UI** at `/`
-- **Dataset & analysis** page at `/dataset`
-- **Results** page at `/results`
-- **API-first** combined scan endpoint with brand evidence
+- **Check a link** — single-scan web UI at `/` (`POST /scan/combined` powers the form)
+- **How it works** — plain-language pipeline and scoring weights at `/how-it-works`
+- **Data & evaluation** — dataset summaries and tools at `/dataset` (alias `/evaluate`)
+- **Model metrics** — charts and evaluation summaries at `/results` (alias `/ml`)
+- **Unified chrome** — one primary nav row on every page; sidebar is brand + home link only
+- **API-first** combined scan with contributing checks, unknown checks, and brand evidence
 - **SQLite snapshot store** for HTML, text, labels, and experiment rows
-- **FastText corpus + training scripts** for the primary model path
-- **Fails-safe** behavior: unavailable checks report `status: "unknown"` (not “safe”)
+- **FastText corpus + training scripts** for the primary model path; optional offline / improved training helpers under `scripts/`
+- **Fail-safe behavior** — unavailable checks report `status: "unknown"` (never implied “safe”)
 - **Archive folder** `old-data/` for legacy datasets and generated outputs
 
 ## Tech stack
@@ -48,7 +50,11 @@ uvicorn app.api:app --reload
 ```
 
 Open:
-- **Web UI**: `http://127.0.0.1:8000/`
+
+- **Check a link**: `http://127.0.0.1:8000/`
+- **How it works**: `http://127.0.0.1:8000/how-it-works`
+- **Data & evaluation**: `http://127.0.0.1:8000/dataset`
+- **Model metrics**: `http://127.0.0.1:8000/results`
 - **OpenAPI docs**: `http://127.0.0.1:8000/docs`
 
 ### Run (no reload; recommended for stability)
@@ -67,8 +73,18 @@ curl -X POST "http://127.0.0.1:8000/scan/combined" \
   -d "{\"url\":\"https://example.com/login\"}"
 ```
 
-### Dataset and results endpoints
+### HTML pages (same app)
 
+| Path | Purpose |
+|------|---------|
+| `GET /` | Scan demo (paste URL, view verdict and signals) |
+| `GET /how-it-works` | Explains normalization, snapshot, parallel detectors, and score blend |
+| `GET /dataset` | Dataset stats, recent rows, evaluation tools |
+| `GET /results` | Model files, metric charts, latest evaluation block |
+
+### JSON / action endpoints
+
+- `POST /scan/combined` — run the full hybrid scan on one URL (JSON body: `{"url": "..."}`)
 - `GET /dataset/summary`
 - `GET /dataset/recent`
 - `GET /models/overview`
@@ -77,7 +93,7 @@ curl -X POST "http://127.0.0.1:8000/scan/combined" \
 
 ## Configuration
 
-All configuration is environment-driven. See `pipeline/shared/config.py` and `scanner/settings.py` for the legacy scanner compatibility layer.
+All configuration is environment-driven. Start with **`pipeline/shared/config.py`** (paths, `FINAL_SCORE_THRESHOLD`, FastText paths) and **`scanner/settings.py`** (timeouts, feeds, scanner toggles). The live **hybrid weights** for rules, FastText, legacy bundle, structured ML, and brand recognition are defined in **`app/service.py`** (`_score_components`); tune the overall cutoff with **`FINAL_SCORE_THRESHOLD`** rather than editing code when possible.
 
 ### Threat intel feeds
 
@@ -132,6 +148,7 @@ Only entries meeting `VT_MIN_SOURCES` are used for **positive** snapshots. Negat
 | `FASTTEXT_WORD_NGRAMS` | `2` | Word n-gram size |
 | `FASTTEXT_MIN_COUNT` | `1` | Minimum token count |
 | `FASTTEXT_LOSS` | `softmax` | FastText loss |
+| `FINAL_SCORE_THRESHOLD` | `30.0` | Composite score at or above → phishing-style verdict in the UI |
 | `BRAND_PROFILES_PATH` | `scanner/brand_profiles.json` | Brand inventory used by content analysis |
 | `CAPSTONE_DATASET_DB` | `.cache/brand-login-dataset.sqlite3` | SQLite snapshot store for captured pages |
 
@@ -167,6 +184,12 @@ python scripts/run_experiments.py phishing_features_extracted_6_features.csv .ca
 
 ```bash
 pytest
+```
+
+Quick API / page smoke:
+
+```bash
+pytest tests/test_api.py -q
 ```
 
 ## Project documentation (DOCX)
@@ -226,7 +249,8 @@ docker compose up --build app
 ```
 
 Open:
-- Web UI: `http://127.0.0.1:8000/`
+
+- Web UI: `http://127.0.0.1:8000/` (and `/how-it-works`, `/dataset`, `/results`)
 - Docs: `http://127.0.0.1:8000/docs`
 
 ### 3) Run script workflows in Docker
