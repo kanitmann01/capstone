@@ -12,7 +12,9 @@ import json  # Standard library: JSON loading for training reports
 import re  # Standard library: regular expression utilities for safe filename validation
 from pathlib import Path  # Standard library: filesystem path abstraction
 from typing import Any  # Standard library: generic type hints
-from urllib.parse import quote  # Standard library: percent-encoding for URL query values
+from urllib.parse import (
+    quote,
+)  # Standard library: percent-encoding for URL query values
 
 from fastapi import FastAPI  # Third-party: ASGI web framework for building APIs
 from fastapi import HTTPException  # Third-party: standardised HTTP error responses
@@ -20,12 +22,22 @@ from fastapi import Request  # Third-party: incoming HTTP request wrapper
 from fastapi.responses import FileResponse  # Third-party: file download responses
 from fastapi.responses import HTMLResponse  # Third-party: HTML page responses
 from fastapi.staticfiles import StaticFiles  # Third-party: static asset serving
-from fastapi.templating import Jinja2Templates  # Third-party: Jinja2 HTML template engine integration
+from fastapi.templating import (
+    Jinja2Templates,
+)  # Third-party: Jinja2 HTML template engine integration
 
-from app.schemas import EvaluationJobRequest  # Project-local: Pydantic model for evaluation jobs
-from app.schemas import FastTextTrainingRequest  # Project-local: Pydantic model for FastText training
-from app.schemas import URLRequest  # Project-local: Pydantic model for URL scan requests
-from app.service import AppService  # Project-local: core application service orchestrator
+from app.schemas import (
+    EvaluationJobRequest,
+)  # Project-local: Pydantic model for evaluation jobs
+from app.schemas import (
+    FastTextTrainingRequest,
+)  # Project-local: Pydantic model for FastText training
+from app.schemas import (
+    URLRequest,
+)  # Project-local: Pydantic model for URL scan requests
+from app.service import (
+    AppService,
+)  # Project-local: core application service orchestrator
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -59,11 +71,16 @@ def page_context(request: Request, *, title: str, active_page: str) -> dict[str,
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    """Render the scan demo landing page."""
+    """Render the scan demo landing page with dashboard stats."""
     return templates.TemplateResponse(
         request,
         "index.html",
-        page_context(request, title="Brand Guard - Check a link", active_page="scan"),
+        {
+            **page_context(
+                request, title="Brand Guard - Check a link", active_page="scan"
+            ),
+            "dashboard": service.dashboard_summary(),
+        },
     )
 
 
@@ -74,7 +91,9 @@ async def how_it_works_page(request: Request):
         request,
         "how-it-works.html",
         {
-            **page_context(request, title="Brand Guard - How it works", active_page="how"),
+            **page_context(
+                request, title="Brand Guard - How it works", active_page="how"
+            ),
             "final_score_threshold": float(service.config.final_score_threshold),
         },
     )
@@ -87,7 +106,9 @@ async def dataset_page(request: Request):
         request,
         "dataset.html",
         {
-            **page_context(request, title="Brand Guard - Data & evaluation", active_page="dataset"),
+            **page_context(
+                request, title="Brand Guard - Data & evaluation", active_page="dataset"
+            ),
             "dataset_summary": service.dataset_summary(),
             "dataset_recent_rows": service.dataset_recent(limit=10),
         },
@@ -147,25 +168,70 @@ def _load_roc_v2_data() -> dict[str, Any]:
         data = _load_json(path)
         fpr = data.get("fpr")
         tpr = data.get("tpr")
-        if isinstance(fpr, list) and isinstance(tpr, list) and len(fpr) >= 2 and len(fpr) == len(tpr):
+        if (
+            isinstance(fpr, list)
+            and isinstance(tpr, list)
+            and len(fpr) >= 2
+            and len(fpr) == len(tpr)
+        ):
             return data
+    return {}
+
+
+def _load_latest_training_report() -> dict[str, Any]:
+    """Load the newest TensorFlow training report from local artifact runs."""
+    artifacts_dir = PROJECT_ROOT / ".cache" / "ml-artifacts"
+    if not artifacts_dir.is_dir():
+        return {}
+
+    candidates = list(artifacts_dir.glob("run_*/report.json"))
+    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    for path in candidates:
+        report = _load_json(path)
+        summary = report.get("summary") if isinstance(report, dict) else None
+        if isinstance(summary, dict) and summary:
+            return report
+    return {}
+
+
+def _load_latest_5fold_validation() -> dict[str, Any]:
+    """Load the latest 5-fold validation report for the results page."""
+    canonical = (
+        PROJECT_ROOT / ".cache" / "ml-artifacts" / "latest_5fold_validation.json"
+    )
+    report = _load_json(canonical)
+    if report.get("report_type") == "tensorflow_5fold_validation":
+        return report
+
+    artifacts_dir = PROJECT_ROOT / ".cache" / "ml-artifacts"
+    if not artifacts_dir.is_dir():
+        return {}
+
+    candidates = list(artifacts_dir.glob("kfold_5_*/cross_validation_report.json"))
+    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    for path in candidates:
+        report = _load_json(path)
+        if report.get("report_type") == "tensorflow_5fold_validation":
+            return report
     return {}
 
 
 @app.get("/results", response_class=HTMLResponse)
 async def results_page(request: Request):
     """Render the results / model overview page."""
-    training_report_v1 = _load_json(PROJECT_ROOT / "models" / "run_20260424_093704" / "report.json")
-    roc_v2 = _load_roc_v2_data()
+    latest_training_report = _load_latest_training_report()
+    kfold_validation_report = _load_latest_5fold_validation()
     return templates.TemplateResponse(
         request,
         "results.html",
         {
-            **page_context(request, title="Brand Guard - Model metrics", active_page="results"),
+            **page_context(
+                request, title="Brand Guard - Model metrics", active_page="results"
+            ),
             "model_overview": service.model_overview(),
             "latest_evaluation_report": service.latest_evaluation_report,
-            "training_report_v1": training_report_v1,
-            "roc_v2": roc_v2,
+            "latest_training_report": latest_training_report,
+            "kfold_validation_report": kfold_validation_report,
         },
     )
 
@@ -174,6 +240,24 @@ async def results_page(request: Request):
 async def ml_page(request: Request):
     """Alias for the results page."""
     return await results_page(request)
+
+
+@app.get("/paper", response_class=HTMLResponse)
+async def paper_page(request: Request):
+    """Render the research paper page with benchmark results."""
+    benchmark_summary = _load_json(
+        PROJECT_ROOT / "docs" / "benchmark" / "benchmark_summary.json"
+    )
+    return templates.TemplateResponse(
+        request,
+        "paper.html",
+        {
+            **page_context(
+                request, title="Brand Guard - Research Paper", active_page="paper"
+            ),
+            "benchmark_summary": benchmark_summary,
+        },
+    )
 
 
 @app.post("/scan/combined")
@@ -212,10 +296,16 @@ async def evaluate(request: EvaluationJobRequest):
         raise HTTPException(status_code=400, detail="CSV content is required.")
     tmp_dir = service.config.evaluation_dir / "ad_hoc"
     tmp_dir.mkdir(parents=True, exist_ok=True)
-    input_path = tmp_dir / f"{Path(request.filename or 'evaluation.csv').stem}_input.csv"
-    output_path = tmp_dir / f"{Path(request.filename or 'evaluation.csv').stem}_scored.csv"
+    input_path = (
+        tmp_dir / f"{Path(request.filename or 'evaluation.csv').stem}_input.csv"
+    )
+    output_path = (
+        tmp_dir / f"{Path(request.filename or 'evaluation.csv').stem}_scored.csv"
+    )
     input_path.write_text(request.csv_content, encoding="utf-8")
-    report = service.evaluate_csv(input_csv=input_path, output_csv=output_path, threshold=request.threshold)
+    report = service.evaluate_csv(
+        input_csv=input_path, output_csv=output_path, threshold=request.threshold
+    )
     eval_root = service.config.evaluation_dir.resolve()
     try:
         output_path.resolve().relative_to(eval_root)

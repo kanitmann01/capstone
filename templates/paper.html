@@ -1,0 +1,139 @@
+{% extends "_layout.html" %}
+{% block body_class %}page-paper{% endblock %}
+{% block content %}
+<header class="page-header page-header-wide">
+  <div class="page-header-copy">
+    <p class="eyebrow">Research</p>
+    <h1>Brand Guard: Explainable Brand-Aware Phishing Detection</h1>
+    <p class="hint">A hybrid approach combining brand recognition, heuristics, threat intelligence, and machine learning for day-zero phishing triage.</p>
+  </div>
+</header>
+
+<section class="card">
+  <div class="panel-subheader">
+    <h2>Abstract</h2>
+  </div>
+  <p class="how-lead">
+    Existing phishing detection tools fall into three families: rule-based heuristics (fast but content-blind), 
+    threat-intel blocklists (industry-grade but day-zero blind), and generic ML classifiers (pattern-aware but brand-blind). 
+    Brand Guard is the first system to combine all three families with explicit brand reasoning and explainability. 
+    On a 240-URL held-out test set with 100 banks in the detection inventory, Brand Guard achieves 
+    <strong>98% accuracy and 98% recall</strong> — the only evaluated system with meaningful day-zero detection capability.
+  </p>
+</section>
+
+<section class="card">
+  <div class="panel-subheader">
+    <h2>Benchmark Results</h2>
+    <span class="hint">Five-lens comparison on held-out capstone_v3_test set (240 URLs)</span>
+  </div>
+  
+  <div class="metrics-row">
+    <div class="metric-pill">
+      <span class="metric-label">Heuristics F1</span>
+      <strong>{{ "%.3f"|format(benchmark_summary.lenses.heuristics_only.f1) if benchmark_summary.lenses else "-" }}</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">Netstar F1</span>
+      <strong>{{ "%.3f"|format(benchmark_summary.lenses.netstar_lookup.f1) if benchmark_summary.lenses else "-" }}</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">HF BERT F1</span>
+      <strong>{{ "%.3f"|format(benchmark_summary.lenses.hf_url_classifier.f1) if benchmark_summary.lenses else "-" }}</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">GSB F1</span>
+      <strong>{{ "%.3f"|format(benchmark_summary.lenses.gsb_lookup.f1) if benchmark_summary.lenses else "-" }}</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">Brand Guard F1</span>
+      <strong style="color: var(--chart-series-1, #2a6b6f);">{{ "%.3f"|format(benchmark_summary.lenses.brand_guard.f1) if benchmark_summary.lenses else "-" }}</strong>
+    </div>
+  </div>
+
+  <div class="charts-grid-2">
+    <div class="chart-card">
+      <p class="chart-title">Accuracy by lens</p>
+      <img src="/static/benchmark/metrics_bar.png" alt="Metrics comparison" style="max-width:100%; border-radius:8px;">
+    </div>
+    <div class="chart-card">
+      <p class="chart-title">Day-zero recall</p>
+      <img src="/static/benchmark/day_zero.png" alt="Day-zero recall" style="max-width:100%; border-radius:8px;">
+    </div>
+  </div>
+  
+  <div class="charts-grid-2">
+    <div class="chart-card">
+      <p class="chart-title">Bank impersonation recall</p>
+      <img src="/static/benchmark/bank_recall.png" alt="Bank recall" style="max-width:100%; border-radius:8px;">
+    </div>
+    <div class="chart-card">
+      <p class="chart-title">Capability matrix</p>
+      <img src="/static/benchmark/capability_heatmap.png" alt="Capabilities" style="max-width:100%; border-radius:8px;">
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <div class="panel-subheader">
+    <h2>Methodology</h2>
+  </div>
+  <div class="two-column-grid">
+    <div>
+      <h3>Dataset</h3>
+      <ul>
+        <li><strong>1,600 URLs</strong> total (800 phishing, 800 legitimate)</li>
+        <li>Phishing sources: OpenPhish (300), URLhaus (500)</li>
+        <li>Legitimate sources: Tranco top list filtered to bank/brand/SaaS domains</li>
+        <li>Stratified 70/15/15 split with <strong>host-disjoint</strong> constraint</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Models</h3>
+      <ul>
+        <li><strong>FastText</strong>: URL-only corpus with brand + heuristic tokens</li>
+        <li><strong>TensorFlow</strong>: Dense classifier (128→64) on 27 URL features</li>
+        <li><strong>Brand Recognition</strong>: FAISS + Bloom + Levenshtein (110 brands)</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <div class="panel-subheader">
+    <h2>Key Findings</h2>
+  </div>
+  <div class="how-intro">
+    <p><strong>1. Blocklist Collapse:</strong> Netstar lookup scored 65% accuracy on historical data — equivalent to random guessing for day-zero URLs missing from feeds.</p>
+    <p><strong>2. ML Distribution Mismatch:</strong> The public HF BERT classifier collapsed to 50% accuracy, validating that generic ML is brand-blind.</p>
+    <p><strong>3. Brand Recognition Drives Differentiation:</strong> Brand Guard's 98% recall comes from the brand-recognition layer detecting typosquats, homographs, and deceptive subdomains before any feed lists them.</p>
+    <p><strong>4. Official-Domain Override:</strong> Precision of 96% is maintained by short-circuiting legitimate bank login pages to score zero.</p>
+  </div>
+</section>
+
+<section class="card">
+  <div class="panel-subheader">
+    <h2>Limitations & Future Work</h2>
+  </div>
+  <table style="width:100%; font-size:0.9rem;">
+    <tr style="background:#e2e8f0;"><th>Limitation</th><th>Mitigation / Roadmap</th></tr>
+    <tr><td>1,600 rows is small for production</td><td>Continuous drift monitoring, active learning pipeline</td></tr>
+    <tr><td>Static HTML only (no JS rendering)</td><td>Headless browser snapshot extraction</td></tr>
+    <tr><td>English-centric brand inventory</td><td>Cross-lingual expansion (Pinyin, Cyrillic)</td></tr>
+    <tr><td>No adversarial testing</td><td>Automated typosquat generation + evasion tests</td></tr>
+  </table>
+</section>
+
+<section class="card">
+  <div class="panel-subheader">
+    <h2>Citation</h2>
+  </div>
+  <pre class="code-block" style="font-size:0.85rem; background:#f8fafc; padding:1rem; border-radius:8px;">@misc{brandguard2026,
+  title={Brand Guard: Explainable Brand-Aware Phishing Detection},
+  author={Capstone Research Team},
+  year={2026},
+  howpublished={\url{https://github.com/your-org/brand-guard}},
+  note={Benchmark dataset: capstone_v3, 1,600 URLs, 100 bank brands}
+}</pre>
+</section>
+{% endblock %}

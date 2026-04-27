@@ -91,7 +91,10 @@ def test_brand_closeness_rows_respect_threshold():
     for row in result["brand_closeness"]:
         similarity = float(row["similarity_score"])
         is_match_row = row["brand"] == matched_brand
-        is_preserved = row["match_reason"] in {"exact_root_match", "deceptive_subdomain_match"}
+        is_preserved = row["match_reason"] in {
+            "exact_root_match",
+            "deceptive_subdomain_match",
+        }
         assert similarity >= threshold or is_match_row or is_preserved
 
 
@@ -103,6 +106,54 @@ def test_brand_closeness_stays_empty_when_far_from_any_brand():
     assert result["status"] == "safe"
     assert result["threat_type"] == "none"
     assert result["brand_closeness"] == []
+
+
+def test_brand_recognition_flags_chase_typosquat():
+    detector = BrandRecognitionDetector()
+
+    result = detector.analyze_url("https://chasse.com/login")
+
+    assert result["parsed_root"] == "chasse"
+    assert result["status"] == "scam"
+    assert result["threat_type"] == "typosquatting"
+    assert result["matched_brand"] == "chase"
+    assert any(row["brand"] == "chase" for row in result["brand_closeness"])
+
+
+def test_brand_recognition_flags_hsbc_homograph():
+    detector = BrandRecognitionDetector()
+
+    result = detector.analyze_url("https://hsbс.com")
+
+    assert result["status"] == "scam"
+    assert result["threat_type"] == "homograph"
+    assert result["matched_brand"] == "hsbc"
+    assert result["homograph_detected"] is True
+    assert result["idna_root"].startswith("xn--")
+
+
+def test_brand_recognition_flags_citi_deceptive_subdomain():
+    detector = BrandRecognitionDetector()
+
+    result = detector.analyze_url("https://secure-citi.login.attacker.tk")
+
+    assert result["parsed_subdomain"] == "secure-citi.login"
+    assert result["status"] == "scam"
+    assert result["threat_type"] == "deceptive_subdomain"
+    assert result["matched_brand"] == "citi"
+    assert any(row["brand"] == "citi" for row in result["brand_closeness"])
+
+
+def test_brand_recognition_allows_wellsfargo_exact_match():
+    detector = BrandRecognitionDetector()
+
+    result = detector.analyze_url("https://wellsfargo.com")
+
+    assert result["parsed_root"] == "wellsfargo"
+    assert result["status"] == "safe"
+    assert result["threat_type"] == "none"
+    assert result["matched_brand"] == "wellsfargo"
+    assert result["brand_closeness"][0]["match_reason"] == "exact_root_match"
 
 
 def test_app_service_includes_brand_recognition_signal(monkeypatch):

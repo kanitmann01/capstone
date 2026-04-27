@@ -1,25 +1,21 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Results</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css?v=20260407ui1">
-</head>
-<body class="page-ml">
-  <main class="container">
-    <section class="card">
-      <p class="eyebrow">Deprecated page</p>
-      <h1>Results</h1>
-      <p class="hint">This legacy ML lab page has been replaced by the FastText results view.</p>
-      <div class="token-list">
-        <a class="helper-link" href="/results">Open Results</a>
-        <a class="helper-link" href="/dataset">Open Dataset & Analysis</a>
-      </div>
-    </section>
-  </main>
-</body>
-</html>
+{% extends "_layout.html" %}
+{% block body_class %}page-deprecated{% endblock %}
+{% block content %}
+<header class="page-header page-header-wide">
+  <div class="page-header-copy">
+    <p class="eyebrow">Deprecated page</p>
+    <h1>Results has moved</h1>
+    <p class="hint">This legacy ML lab page has been replaced by the FastText results view.</p>
+  </div>
+</header>
+
+<section class="card">
+  <div class="panel-subheader">
+    <h2>Where to go next</h2>
+  </div>
+  <div class="token-list">
+    <a class="helper-link" href="/results">Open Results</a>
+    <a class="helper-link" href="/dataset">Open Dataset &amp; Analysis</a>
+  </div>
+</section>
+{% endblock %}

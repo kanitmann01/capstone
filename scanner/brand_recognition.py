@@ -25,46 +25,283 @@ import tldextract
 
 DEFAULT_TARGET_BRANDS: tuple[str, ...] = (
     # Consumer tech and OS vendors
-    "apple", "microsoft", "google", "amazon", "meta", "facebook", "instagram",
-    "whatsapp", "tiktok", "twitter", "linkedin", "youtube", "snapchat", "reddit",
-    "pinterest", "github", "gitlab", "dropbox", "slack", "zoom", "salesforce",
-    "oracle", "intel", "nvidia", "samsung", "sony", "dell", "lenovo", "huawei",
+    "apple",
+    "microsoft",
+    "google",
+    "amazon",
+    "meta",
+    "facebook",
+    "instagram",
+    "whatsapp",
+    "tiktok",
+    "twitter",
+    "linkedin",
+    "youtube",
+    "snapchat",
+    "reddit",
+    "pinterest",
+    "github",
+    "gitlab",
+    "dropbox",
+    "slack",
+    "zoom",
+    "salesforce",
+    "oracle",
+    "intel",
+    "nvidia",
+    "samsung",
+    "sony",
+    "dell",
+    "lenovo",
+    "huawei",
     "xiaomi",
     # Retail and e-commerce
-    "ebay", "walmart", "target", "costco", "alibaba", "aliexpress", "shopify",
-    "etsy", "bestbuy", "homedepot", "ikea", "nordstrom",
+    "ebay",
+    "walmart",
+    "target",
+    "costco",
+    "alibaba",
+    "aliexpress",
+    "shopify",
+    "etsy",
+    "bestbuy",
+    "homedepot",
+    "ikea",
+    "nordstrom",
     # Streaming and media
-    "netflix", "hulu", "disney", "spotify", "soundcloud", "twitch", "vimeo",
+    "netflix",
+    "hulu",
+    "disney",
+    "spotify",
+    "soundcloud",
+    "twitch",
+    "vimeo",
     # Finance and payments
-    "paypal", "venmo", "stripe", "chase", "wellsfargo", "citibank", "capitalone",
-    "americanexpress", "visa", "mastercard", "discover", "hsbc", "barclays",
-    "usbank", "coinbase", "binance", "robinhood", "kraken",
+    "paypal",
+    "venmo",
+    "stripe",
+    "chase",
+    "wellsfargo",
+    "citi",
+    "citibank",
+    "capitalone",
+    "americanexpress",
+    "visa",
+    "mastercard",
+    "discover",
+    "hsbc",
+    "barclays",
+    "usbank",
+    "coinbase",
+    "binance",
+    "robinhood",
+    "kraken",
+    # US banks (top 30)
+    "bankofamerica",
+    "bofa",
+    "jpmorgan",
+    "jpmorganchase",
+    "pnc",
+    "truist",
+    "goldman",
+    "goldmansachs",
+    "marcus",
+    "tdbank",
+    "charlesschwab",
+    "schwab",
+    "ally",
+    "citizens",
+    "fifththird",
+    "keybank",
+    "regions",
+    "mtbank",
+    "mt",
+    "huntington",
+    "northerntrust",
+    "bnymellon",
+    "bnymellon",
+    "statestreet",
+    "usaa",
+    "navyfederal",
+    "nfcu",
+    "sofi",
+    "chime",
+    "varo",
+    "firstrepublic",
+    "siliconvalleybank",
+    "svb",
+    # European banks (top 25)
+    "lloyds",
+    "natwest",
+    "santander",
+    "bnp",
+    "bnpparibas",
+    "societegenerale",
+    "socgen",
+    "creditagricole",
+    "deutschebank",
+    "commerzbank",
+    "ing",
+    "rabobank",
+    "abnamro",
+    "ubs",
+    "creditsuisse",
+    "cs",
+    "juliusbaer",
+    "standardchartered",
+    "unicredit",
+    "intesasanpaolo",
+    "nordea",
+    "seb",
+    "swedbank",
+    "danskebank",
+    "kbc",
+    "erste",
+    "erstegroup",
+    # Asia-Pacific banks (top 20)
+    "icbc",
+    "ccb",
+    "chinaconstructionbank",
+    "agriculturalbankofchina",
+    "abc",
+    "bankofchina",
+    "boc",
+    "bankofcommunications",
+    "bocom",
+    "chinamerchantsbank",
+    "cmb",
+    "mufg",
+    "mitsubishiufj",
+    "mizuho",
+    "sumitomomitsui",
+    "smbc",
+    "nomura",
+    "dbs",
+    "ocbc",
+    "uob",
+    "maybank",
+    "cimb",
+    "hdfc",
+    "icici",
+    "sbi",
+    "statebankofindia",
+    "axis",
+    "kotak",
+    "kotakmahindra",
+    # Middle East / LatAm / Other (top 15)
+    "emiratesnbd",
+    "adcb",
+    "qnb",
+    "saudinationalbank",
+    "snb",
+    "itau",
+    "bradesco",
+    "bancodobrasil",
+    "bb",
+    "bbva",
+    "scotiabank",
+    "rbc",
+    "tdcanadatrust",
+    "westpac",
+    "anz",
+    "commonwealthbank",
+    "commbank",
+    "cba",
+    "nab",
+    # Online-first / fintech banks (top 10)
+    "revolut",
+    "wise",
+    "transferwise",
+    "n26",
+    "monzo",
+    "starling",
+    "starlingbank",
+    "nubank",
+    "mercury",
+    "brex",
+    "cashapp",
+    "squarecash",
+    "klarna",
     # Cloud and infrastructure
-    "aws", "azure", "cloudflare", "digitalocean", "heroku", "vercel", "netlify",
+    "aws",
+    "azure",
+    "cloudflare",
+    "digitalocean",
+    "heroku",
+    "vercel",
+    "netlify",
     "akamai",
     # Shipping and logistics
-    "fedex", "ups", "usps", "dhl",
+    "fedex",
+    "ups",
+    "usps",
+    "dhl",
     # Airlines
-    "delta", "united", "lufthansa", "emirates",
+    "delta",
+    "united",
+    "lufthansa",
+    "emirates",
     # Travel and mobility
-    "booking", "airbnb", "expedia", "tripadvisor", "uber", "lyft",
+    "booking",
+    "airbnb",
+    "expedia",
+    "tripadvisor",
+    "uber",
+    "lyft",
     # Gaming
-    "steam", "playstation", "xbox", "nintendo", "epicgames", "roblox",
-    "minecraft", "nike",
+    "steam",
+    "playstation",
+    "xbox",
+    "nintendo",
+    "epicgames",
+    "roblox",
+    "minecraft",
+    "nike",
     # Food and QSR
-    "starbucks", "mcdonalds",
+    "starbucks",
+    "mcdonalds",
     # Search and web services
-    "yahoo", "bing", "tumblr", "quora", "medium", "wordpress",
+    "yahoo",
+    "bing",
+    "tumblr",
+    "quora",
+    "medium",
+    "wordpress",
     # Productivity and creative
-    "notion", "trello", "asana", "jira", "figma", "canva", "adobe", "autodesk",
+    "notion",
+    "trello",
+    "asana",
+    "jira",
+    "figma",
+    "canva",
+    "adobe",
+    "autodesk",
     # Communications
-    "skype", "telegram", "discord", "signal", "webex",
+    "skype",
+    "telegram",
+    "discord",
+    "signal",
+    "webex",
     # Automotive
-    "tesla", "toyota", "honda", "ford", "bmw",
+    "tesla",
+    "toyota",
+    "honda",
+    "ford",
+    "bmw",
     # Asian internet giants
-    "wechat", "tencent", "baidu", "naver", "line", "paytm", "flipkart",
+    "wechat",
+    "tencent",
+    "baidu",
+    "naver",
+    "line",
+    "paytm",
+    "flipkart",
     # Webmail and identity providers
-    "gmail", "outlook", "icloud", "protonmail", "hotmail",
+    "gmail",
+    "outlook",
+    "icloud",
+    "protonmail",
+    "hotmail",
 )
 
 
@@ -91,15 +328,21 @@ class BrandRecognitionDetector:
         min_similarity: float = 0.70,
     ) -> None:
         """Initialize the Bloom filter, TF-IDF vectorizer, and FAISS index once."""
-        self.target_brands = self._normalize_brands(tuple(target_brands or DEFAULT_TARGET_BRANDS))
+        self.target_brands = self._normalize_brands(
+            tuple(target_brands or DEFAULT_TARGET_BRANDS)
+        )
         self.max_candidates = max(1, min(int(max_candidates), len(self.target_brands)))
         self.min_similarity = max(0.0, min(1.0, float(min_similarity)))
         self.brand_set = frozenset(self.target_brands)
-        self.safe_brand_filter = BloomFilter(capacity=max(len(self.target_brands), 1), error_rate=false_positive_rate)
+        self.safe_brand_filter = BloomFilter(
+            capacity=max(len(self.target_brands), 1), error_rate=false_positive_rate
+        )
         for brand in self.target_brands:
             self.safe_brand_filter.add(brand)
         self.tld_extract = tldextract.TLDExtract(suffix_list_urls=())
-        self.vectorizer = TfidfVectorizer(analyzer="char", ngram_range=(3, 3), lowercase=True, norm="l2")
+        self.vectorizer = TfidfVectorizer(
+            analyzer="char", ngram_range=(3, 3), lowercase=True, norm="l2"
+        )
         self._brand_matrix = self._fit_brand_vectors()
         self.index = self._build_faiss_index(self._brand_matrix)
 
@@ -130,14 +373,21 @@ class BrandRecognitionDetector:
                     "threat_type": "none",
                     "matched_brand": root_domain,
                     "confidence_score": 0.99,
-                    "brand_closeness": [self._closeness_row(root_domain, 1.0, 0, "exact_root_match")],
+                    "brand_closeness": [
+                        self._closeness_row(root_domain, 1.0, 0, "exact_root_match")
+                    ],
                 }
             )
             return payload
 
         candidates = self._nearest_brand_candidates(root_domain)
         closeness_rows = [
-            self._closeness_row(candidate["brand"], candidate["faiss_score"], candidate["distance"], "nearest_brand")
+            self._closeness_row(
+                candidate["brand"],
+                candidate["faiss_score"],
+                candidate["distance"],
+                "nearest_brand",
+            )
             for candidate in candidates
         ]
 
@@ -150,27 +400,45 @@ class BrandRecognitionDetector:
                 "status": "scam",
                 "threat_type": "homograph",
                 "matched_brand": matched_brand,
-                "confidence_score": self._confidence_from_distance(int(closest["distance"]), homograph=True),
+                "confidence_score": self._confidence_from_distance(
+                    int(closest["distance"]), homograph=True
+                ),
                 "risk_score": 98.0,
             }
         else:
-            typo_match = next((candidate for candidate in candidates if 1 <= int(candidate["distance"]) <= 3), None)
+            typo_match = next(
+                (
+                    candidate
+                    for candidate in candidates
+                    if 1 <= int(candidate["distance"]) <= 3
+                ),
+                None,
+            )
             if typo_match:
                 matched_brand = typo_match["brand"]
                 threat_verdict = {
                     "status": "scam",
                     "threat_type": "typosquatting",
                     "matched_brand": matched_brand,
-                    "confidence_score": self._confidence_from_distance(int(typo_match["distance"])),
+                    "confidence_score": self._confidence_from_distance(
+                        int(typo_match["distance"])
+                    ),
                     "risk_score": 95.0,
                 }
             else:
                 deceptive_brand = self._brand_in_subdomain(parsed.subdomain)
                 if deceptive_brand:
                     matched_brand = deceptive_brand
-                    if not any(row["brand"] == deceptive_brand for row in closeness_rows):
+                    if not any(
+                        row["brand"] == deceptive_brand for row in closeness_rows
+                    ):
                         closeness_rows.append(
-                            self._closeness_row(deceptive_brand, 0.0, len(root_domain), "deceptive_subdomain_match")
+                            self._closeness_row(
+                                deceptive_brand,
+                                0.0,
+                                len(root_domain),
+                                "deceptive_subdomain_match",
+                            )
                         )
                     threat_verdict = {
                         "status": "scam",
@@ -180,12 +448,16 @@ class BrandRecognitionDetector:
                         "risk_score": 88.0,
                     }
 
-        payload["brand_closeness"] = self._filter_closeness_rows(closeness_rows, matched_brand)
+        payload["brand_closeness"] = self._filter_closeness_rows(
+            closeness_rows, matched_brand
+        )
         if threat_verdict is not None:
             payload.update(threat_verdict)
             return payload
 
-        payload.update({"status": "safe", "threat_type": "none", "confidence_score": 0.25})
+        payload.update(
+            {"status": "safe", "threat_type": "none", "confidence_score": 0.25}
+        )
         return payload
 
     def preprocess_url(self, raw_url: str) -> ParsedDomain:
@@ -220,7 +492,9 @@ class BrandRecognitionDetector:
         is deduplicated and returned sorted by edit distance.
         """
         try:
-            query = self.vectorizer.transform([root_domain]).astype(np.float32).toarray()
+            query = (
+                self.vectorizer.transform([root_domain]).astype(np.float32).toarray()
+            )
             faiss.normalize_L2(query)
             scores, indices = self.index.search(query, self.max_candidates)
         except Exception as exc:
@@ -254,13 +528,21 @@ class BrandRecognitionDetector:
 
         sorted_candidates = sorted(
             candidates.values(),
-            key=lambda item: (int(item["distance"]), -float(item["faiss_score"]), item["brand"]),
+            key=lambda item: (
+                int(item["distance"]),
+                -float(item["faiss_score"]),
+                item["brand"],
+            ),
         )
         return sorted_candidates[: self.max_candidates]
 
     def _fit_brand_vectors(self) -> np.ndarray:
         """Fit character 3-gram TF-IDF vectors for the target brand roots."""
-        matrix = self.vectorizer.fit_transform(self.target_brands).astype(np.float32).toarray()
+        matrix = (
+            self.vectorizer.fit_transform(self.target_brands)
+            .astype(np.float32)
+            .toarray()
+        )
         faiss.normalize_L2(matrix)
         return np.ascontiguousarray(matrix, dtype=np.float32)
 
@@ -292,7 +574,9 @@ class BrandRecognitionDetector:
             is_preserved = row.get("match_reason") in preserved_reasons
             if similarity >= self.min_similarity or is_match or is_preserved:
                 filtered.append(row)
-        filtered.sort(key=lambda item: float(item.get("similarity_score", 0.0)), reverse=True)
+        filtered.sort(
+            key=lambda item: float(item.get("similarity_score", 0.0)), reverse=True
+        )
         return filtered
 
     def _base_payload(self, url: str, parsed: ParsedDomain) -> dict[str, Any]:
@@ -334,9 +618,13 @@ class BrandRecognitionDetector:
             "unknown_reason": str(exc),
         }
 
-    def _closeness_row(self, brand: str, faiss_score: float, distance: int, reason: str) -> dict[str, Any]:
+    def _closeness_row(
+        self, brand: str, faiss_score: float, distance: int, reason: str
+    ) -> dict[str, Any]:
         """Build one visualization row comparing the analyzed root with a real brand."""
-        similarity_score = max(0.0, min(1.0, 1.0 - (float(distance) / max(len(brand), 1))))
+        similarity_score = max(
+            0.0, min(1.0, 1.0 - (float(distance) / max(len(brand), 1)))
+        )
         return {
             "brand": brand,
             "real_domain": f"{brand}.com",
@@ -346,7 +634,9 @@ class BrandRecognitionDetector:
             "match_reason": reason,
         }
 
-    def _confidence_from_distance(self, distance: int, *, homograph: bool = False) -> float:
+    def _confidence_from_distance(
+        self, distance: int, *, homograph: bool = False
+    ) -> float:
         """Convert edit distance into a bounded confidence score."""
         base = {0: 0.98, 1: 0.95, 2: 0.9, 3: 0.82}.get(distance, 0.65)
         if homograph:
@@ -377,4 +667,6 @@ if __name__ == "__main__":
         "https://netflix.login.user123.com",
     ]
     for example_url in examples:
-        print(json.dumps(detector.analyze_url(example_url), indent=2, ensure_ascii=True))
+        print(
+            json.dumps(detector.analyze_url(example_url), indent=2, ensure_ascii=True)
+        )

@@ -5,171 +5,298 @@
 <script defer src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
 {% endblock %}
 {% block content %}
-    <header class="target-header">
+<header class="target-header">
+  <div>
+    <p class="eyebrow">Link check</p>
+    <h1>Check a suspicious link</h1>
+  </div>
+  <p class="target-host" id="target-host">Address: <span class="mono">-</span></p>
+</header>
+
+<form id="scan-form" class="command-bar">
+  <label class="command-input-shell" for="url-input">
+    <span class="field-label">Paste the link you are unsure about</span>
+    <input
+      id="url-input"
+      type="text"
+      name="url"
+      placeholder="https://example.com/signin"
+      maxlength="8192"
+      autocomplete="off"
+      spellcheck="false"
+      enterkeyhint="go"
+      aria-describedby="url-field-hint"
+      required
+    />
+    <span id="url-field-hint" class="command-footnote">We open the page safely, score how risky it looks, and list the clearest reasons—look-alike brands, login forms, and wording that often appears on fake sites.</span>
+  </label>
+  <button id="scan-submit-btn" type="submit">Analyze link</button>
+</form>
+
+<section id="status" class="card muted status-panel" aria-live="polite">
+  <div class="status-shell">
+    <p class="eyebrow status-eyebrow">Status</p>
+    <p id="status-message" class="status-message">Ready</p>
+    <p id="status-detail" class="status-detail">Paste a full web address (URL). We report an overall risk level and the evidence behind it.</p>
+  </div>
+</section>
+
+<section id="summary" class="summary-panel screenshot-summary hidden">
+  <div class="summary-header">
+    <div>
+      <p class="eyebrow">Results</p>
+      <h2>Summary</h2>
+    </div>
+    <div id="summary-state" class="summary-state">Not run yet</div>
+  </div>
+
+  <div class="summary-grid screenshot-grid">
+    <article class="risk-hero screenshot-risk-card">
+      <div class="risk-meter" aria-hidden="true">
+        <div class="risk-meter-core">
+          <span class="metric-label">Risk score (0–100)</span>
+          <span id="summary-risk" class="risk-value">0</span>
+          <div id="summary-verdict" class="status-pill">Not run yet</div>
+        </div>
+      </div>
+      <div class="risk-hero-copy">
+        <span id="summary-band" class="risk-band">No results yet</span>
+        <span id="summary-url" class="risk-url mono">-</span>
+      </div>
+      <p id="summary-explanation" class="signal-copy">-</p>
+    </article>
+
+    <div class="signal-row-wide">
+      <article class="signal-card analysis-card compact-metric">
+        <span class="metric-label">URL pattern score</span>
+        <p id="summary-guidance" class="signal-copy">Run a check to see how the link-only model scored this address.</p>
+      </article>
+
+      <article class="signal-card analysis-card compact-metric">
+        <span class="metric-label">Rule-based checks</span>
+        <p id="summary-action" class="signal-copy">Run a check to see what fixed rules found on the page (forms, host, path, and similar).</p>
+      </article>
+    </div>
+
+    <div class="sub-signal-grid">
+      <article class="signal-card compact-metric">
+        <span class="metric-label">Older combined score</span>
+        <p id="summary-legacy" class="signal-copy">Run a check to see the earlier weighted score, if available.</p>
+      </article>
+
+      <article class="signal-card compact-metric">
+        <span class="metric-label">Numeric risk model</span>
+        <p id="summary-ml" class="signal-copy">Run a check to see scores from the structured numeric model, if enabled.</p>
+      </article>
+
+      <article class="signal-card compact-metric">
+        <span class="metric-label">What raised the score</span>
+        <div id="summary-contrib" class="token-list"></div>
+      </article>
+
+      <article class="signal-card compact-metric">
+        <span class="metric-label">Inconclusive checks</span>
+        <div id="summary-unknown" class="token-list"></div>
+      </article>
+
+      <article class="signal-card compact-metric">
+        <span class="metric-label">Overall score</span>
+        <div id="summary-hybrid" class="status-pill">Not run yet</div>
+      </article>
+    </div>
+  </div>
+
+  <section class="evidence-panel" aria-labelledby="evidence-title">
+    <div class="panel-subheader">
+      <h3 id="evidence-title">What we found on the page</h3>
+    </div>
+    <div class="evidence-top">
+      <article class="evidence-item">
+        <span class="metric-label">Detected Brand</span>
+        <strong id="brand-value">-</strong>
+      </article>
+      <article class="evidence-item">
+        <span class="metric-label">Host Provider</span>
+        <strong id="host-value">-</strong>
+      </article>
+      <article class="evidence-item">
+        <span class="metric-label">Threat list freshness</span>
+        <strong id="feed-value">-</strong>
+      </article>
+    </div>
+    <div class="evidence-middle">
+      <article class="evidence-code-block">
+        <span class="metric-label">Login form sample</span>
+        <pre id="form-snippet" class="code-block">&lt;form&gt;No page HTML was saved for this check.&lt;/form&gt;</pre>
+        <span id="form-value" class="hidden">-</span>
+      </article>
+      <article class="evidence-item">
+        <span class="metric-label">Suspicious Phrases</span>
+        <div id="phrases-value" class="token-list"></div>
+      </article>
+    </div>
+    <div class="evidence-bottom">
+      <article class="evidence-item">
+        <span class="metric-label">Brand name in the path?</span>
+        <strong id="path-value" class="mono">-</strong>
+      </article>
+    </div>
+  </section>
+
+  <section class="brand-closeness-panel" aria-labelledby="brand-closeness-title">
+    <div class="panel-subheader">
       <div>
-        <p class="eyebrow">Link check</p>
-        <h1>Check a suspicious link</h1>
+        <p class="eyebrow">Look-alike brands</p>
+        <h2 id="brand-closeness-title">How close this site is to real brand domains</h2>
       </div>
-      <p class="target-host" id="target-host">Address: <span class="mono">-</span></p>
-    </header>
+      <span id="brand-closeness-verdict" class="status-pill">Not run yet</span>
+    </div>
+    <p id="brand-closeness-copy" class="hint">Run a check to compare this link’s domain to known brands. Only names above <strong id="brand-closeness-threshold-label">70%</strong> similarity appear on the map.</p>
+    <div id="brand-closeness-graph" class="brand-closeness-graph" role="img" aria-label="Map of this domain compared to similar brand domains"></div>
+    <p id="brand-closeness-empty" class="brand-closeness-empty hidden">No brand name was close enough to this domain to show on the map.</p>
+    <div id="brand-closeness-legend" class="brand-closeness-legend hidden" aria-hidden="true">
+      <span class="legend-item"><span class="legend-swatch legend-swatch-root"></span>This link’s domain</span>
+      <span class="legend-item"><span class="legend-swatch legend-swatch-match"></span>Matched brand</span>
+      <span class="legend-item"><span class="legend-swatch legend-swatch-candidate"></span>Similar brand</span>
+      <span class="legend-item legend-item-note">Thicker line = more similar spelling</span>
+    </div>
+  </section>
+</section>
 
-    <form id="scan-form" class="command-bar">
-      <label class="command-input-shell" for="url-input">
-        <span class="field-label">Paste the link you are unsure about</span>
-        <input
-          id="url-input"
-          type="text"
-          name="url"
-          placeholder="https://example.com/signin"
-          maxlength="8192"
-          autocomplete="off"
-          spellcheck="false"
-          enterkeyhint="go"
-          aria-describedby="url-field-hint"
-          required
-        />
-        <span id="url-field-hint" class="command-footnote">We open the page safely, score how risky it looks, and list the clearest reasons—look-alike brands, login forms, and wording that often appears on fake sites.</span>
-      </label>
-      <button id="scan-submit-btn" type="submit">Analyze link</button>
-    </form>
+<section id="details" class="card hidden">
+  <div class="panel-subheader">
+    <h2>All data (for IT review)</h2>
+    <span class="hint">Complete machine-readable output from this check</span>
+  </div>
+  <pre id="details-json"></pre>
+</section>
 
-    <section id="status" class="card muted status-panel" aria-live="polite">
-      <div class="status-shell">
-        <p class="eyebrow status-eyebrow">Status</p>
-        <p id="status-message" class="status-message">Ready</p>
-        <p id="status-detail" class="status-detail">Paste a full web address (URL). We report an overall risk level and the evidence behind it.</p>
+<section class="dash-stats-grid">
+  <article class="dash-stat-card card" data-tone="primary">
+    <div class="dash-stat-icon" aria-hidden="true">🔍</div>
+    <div class="dash-stat-body">
+      <span class="metric-label">Total scans</span>
+      <strong class="dash-stat-value">{{ "{:,}".format(dashboard.total_scans or 0) }}</strong>
+    </div>
+  </article>
+  <article class="dash-stat-card card" data-tone="danger">
+    <div class="dash-stat-icon" aria-hidden="true">🛡️</div>
+    <div class="dash-stat-body">
+      <span class="metric-label">Threats caught</span>
+      <strong class="dash-stat-value">{{ "{:,}".format(dashboard.threats_caught or 0) }}</strong>
+    </div>
+  </article>
+  <article class="dash-stat-card card" data-tone="safe">
+    <div class="dash-stat-icon" aria-hidden="true">✓</div>
+    <div class="dash-stat-body">
+      <span class="metric-label">Clean sites</span>
+      <strong class="dash-stat-value">{{ "{:,}".format(dashboard.clean_sites or 0) }}</strong>
+    </div>
+  </article>
+  <article class="dash-stat-card card" data-tone="accent">
+    <div class="dash-stat-icon" aria-hidden="true">📊</div>
+    <div class="dash-stat-body">
+      <span class="metric-label">Dataset rows</span>
+      <strong class="dash-stat-value">{{ "{:,}".format(dashboard.dataset.total_rows or 0) }}</strong>
+    </div>
+  </article>
+</section>
+
+<div class="dash-two-column">
+  <section class="card dash-health-card">
+    <div class="panel-subheader">
+      <div>
+        <h2>System health</h2>
+        <span class="hint">Model and feed status at a glance</span>
       </div>
-    </section>
-
-    <section id="summary" class="summary-panel screenshot-summary hidden">
-      <div class="summary-header">
-        <div>
-          <p class="eyebrow">Results</p>
-          <h2>Summary</h2>
+    </div>
+    <div class="dash-health-grid">
+      <article class="dash-health-item">
+        <span class="metric-label">FastText model</span>
+        <div class="dash-health-status">
+          <span class="dash-status-dot {% if dashboard.model.fasttext_available %}ok{% else %}warn{% endif %}"></span>
+          <strong>{{ "Active" if dashboard.model.fasttext_available else "Unavailable" }}</strong>
         </div>
-        <div id="summary-state" class="summary-state">Not run yet</div>
+      </article>
+      <article class="dash-health-item">
+        <span class="metric-label">Structured ML</span>
+        <div class="dash-health-status">
+          <span class="dash-status-dot {% if dashboard.model.structured_ml_available %}ok{% else %}warn{% endif %}"></span>
+          <strong>{{ "Active" if dashboard.model.structured_ml_available else "Unavailable" }}</strong>
+        </div>
+      </article>
+      <article class="dash-health-item">
+        <span class="metric-label">Threat feeds</span>
+        <div class="dash-health-status">
+          <span class="dash-status-dot {% if dashboard.feed.stale_cache %}warn{% else %}ok{% endif %}"></span>
+          <strong>{{ "Stale" if dashboard.feed.stale_cache else "Fresh" }}</strong>
+        </div>
+      </article>
+      <article class="dash-health-item">
+        <span class="metric-label">Last refresh</span>
+        <div class="dash-health-status">
+          <span class="dash-status-dot ok"></span>
+          <strong>{{ dashboard.feed.last_refresh_utc or "Never" }}</strong>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="card dash-benchmark-teaser">
+    <div class="panel-subheader">
+      <div>
+        <h2>Benchmark snapshot</h2>
+        <span class="hint">How Brand Guard compares to industry baselines</span>
       </div>
-
-      <div class="summary-grid screenshot-grid">
-        <article class="risk-hero screenshot-risk-card">
-          <div class="risk-meter" aria-hidden="true">
-            <div class="risk-meter-core">
-              <span class="metric-label">Risk score (0–100)</span>
-              <span id="summary-risk" class="risk-value">0</span>
-              <div id="summary-verdict" class="status-pill">Not run yet</div>
-            </div>
-          </div>
-          <div class="risk-hero-copy">
-            <span id="summary-band" class="risk-band">No results yet</span>
-            <span id="summary-url" class="risk-url mono">-</span>
-          </div>
-          <p id="summary-explanation" class="signal-copy">-</p>
-        </article>
-
-        <div class="signal-row-wide">
-          <article class="signal-card analysis-card compact-metric">
-            <span class="metric-label">URL pattern score</span>
-            <p id="summary-guidance" class="signal-copy">Run a check to see how the link-only model scored this address.</p>
-          </article>
-
-          <article class="signal-card analysis-card compact-metric">
-            <span class="metric-label">Rule-based checks</span>
-            <p id="summary-action" class="signal-copy">Run a check to see what fixed rules found on the page (forms, host, path, and similar).</p>
-          </article>
-        </div>
-
-        <div class="sub-signal-grid">
-          <article class="signal-card compact-metric">
-            <span class="metric-label">Older combined score</span>
-            <p id="summary-legacy" class="signal-copy">Run a check to see the earlier weighted score, if available.</p>
-          </article>
-
-          <article class="signal-card compact-metric">
-            <span class="metric-label">Numeric risk model</span>
-            <p id="summary-ml" class="signal-copy">Run a check to see scores from the structured numeric model, if enabled.</p>
-          </article>
-
-          <article class="signal-card compact-metric">
-            <span class="metric-label">What raised the score</span>
-            <div id="summary-contrib" class="token-list"></div>
-          </article>
-
-          <article class="signal-card compact-metric">
-            <span class="metric-label">Inconclusive checks</span>
-            <div id="summary-unknown" class="token-list"></div>
-          </article>
-
-          <article class="signal-card compact-metric">
-            <span class="metric-label">Overall score</span>
-            <div id="summary-hybrid" class="status-pill">Not run yet</div>
-          </article>
-        </div>
+    </div>
+    <div class="dash-benchmark-body">
+      <div class="dash-benchmark-metric">
+        <span class="metric-label">Brand Guard F1</span>
+        <strong class="dash-benchmark-value" style="color: var(--safe);">0.979</strong>
       </div>
-
-      <section class="evidence-panel" aria-labelledby="evidence-title">
-        <div class="panel-subheader">
-          <h3 id="evidence-title">What we found on the page</h3>
-        </div>
-        <div class="evidence-top">
-          <article class="evidence-item">
-            <span class="metric-label">Detected Brand</span>
-            <strong id="brand-value">-</strong>
-          </article>
-          <article class="evidence-item">
-            <span class="metric-label">Host Provider</span>
-            <strong id="host-value">-</strong>
-          </article>
-          <article class="evidence-item">
-            <span class="metric-label">Threat list freshness</span>
-            <strong id="feed-value">-</strong>
-          </article>
-        </div>
-        <div class="evidence-middle">
-          <article class="evidence-code-block">
-            <span class="metric-label">Login form sample</span>
-            <pre id="form-snippet" class="code-block">&lt;form&gt;No page HTML was saved for this check.&lt;/form&gt;</pre>
-            <span id="form-value" class="hidden">-</span>
-          </article>
-          <article class="evidence-item">
-            <span class="metric-label">Suspicious Phrases</span>
-            <div id="phrases-value" class="token-list"></div>
-          </article>
-        </div>
-        <div class="evidence-bottom">
-          <article class="evidence-item">
-            <span class="metric-label">Brand name in the path?</span>
-            <strong id="path-value" class="mono">-</strong>
-          </article>
-        </div>
-      </section>
-
-      <section class="brand-closeness-panel" aria-labelledby="brand-closeness-title">
-        <div class="panel-subheader">
-          <div>
-            <p class="eyebrow">Look-alike brands</p>
-            <h2 id="brand-closeness-title">How close this site is to real brand domains</h2>
-          </div>
-          <span id="brand-closeness-verdict" class="status-pill">Not run yet</span>
-        </div>
-        <p id="brand-closeness-copy" class="hint">Run a check to compare this link’s domain to known brands. Only names above <strong id="brand-closeness-threshold-label">70%</strong> similarity appear on the map.</p>
-        <div id="brand-closeness-graph" class="brand-closeness-graph" role="img" aria-label="Map of this domain compared to similar brand domains"></div>
-        <p id="brand-closeness-empty" class="brand-closeness-empty hidden">No brand name was close enough to this domain to show on the map.</p>
-        <div id="brand-closeness-legend" class="brand-closeness-legend hidden" aria-hidden="true">
-          <span class="legend-item"><span class="legend-swatch legend-swatch-root"></span>This link’s domain</span>
-          <span class="legend-item"><span class="legend-swatch legend-swatch-match"></span>Matched brand</span>
-          <span class="legend-item"><span class="legend-swatch legend-swatch-candidate"></span>Similar brand</span>
-          <span class="legend-item legend-item-note">Thicker line = more similar spelling</span>
-        </div>
-      </section>
-    </section>
-
-    <section id="details" class="card hidden">
-      <div class="panel-subheader">
-        <h2>All data (for IT review)</h2>
-        <span class="hint">Complete machine-readable output from this check</span>
+      <div class="dash-benchmark-metric">
+        <span class="metric-label">Heuristics F1</span>
+        <strong class="dash-benchmark-value">0.812</strong>
       </div>
-      <pre id="details-json"></pre>
-    </section>
+      <div class="dash-benchmark-metric">
+        <span class="metric-label">Netstar F1</span>
+        <strong class="dash-benchmark-value">0.452</strong>
+      </div>
+      <div class="dash-benchmark-metric">
+        <span class="metric-label">Day-zero recall</span>
+        <strong class="dash-benchmark-value" style="color: var(--safe);">96.6%</strong>
+      </div>
+    </div>
+    <div class="panel-footer">
+      <a class="helper-link" href="/results">View full benchmark</a>
+    </div>
+  </section>
+</div>
+
+<section class="card">
+  <div class="panel-subheader">
+    <div>
+      <h2>Recent activity</h2>
+      <span class="hint">Latest scans from this session</span>
+    </div>
+  </div>
+  {% if dashboard.recent_scans %}
+  <div class="dash-activity-list">
+    {% for scan in dashboard.recent_scans %}
+    <div class="dash-activity-item">
+      <span class="dash-activity-dot {% if scan.prediction == 'phishing' %}danger{% else %}safe{% endif %}"></span>
+      <span class="dash-activity-url mono">{{ scan.url }}</span>
+      <span class="dash-activity-prediction status-pill {% if scan.prediction == 'phishing' %}status-pill-danger{% else %}status-pill-safe{% endif %}">
+        {{ scan.prediction }}
+      </span>
+      <span class="dash-activity-score">{{ scan.risk_score }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="hint">No scans yet. Run a check above to see activity here.</p>
+  {% endif %}
+</section>
 {% endblock %}
 {% block scripts %}
 <script src="/static/app.js?v=20260426nav1"></script>

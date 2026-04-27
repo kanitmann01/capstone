@@ -18,6 +18,7 @@ from typing import Any  # Standard library: generic type hints
 
 BRAND_PROFILE_VERSION = "brand_profiles_v1"
 BRAND_PROFILE_PATH = Path(__file__).with_name("brand_profiles.json")
+BRAND_PROFILE_BANKS_PATH = Path(__file__).with_name("brand_profiles_banks.json")
 
 
 @dataclass(frozen=True)
@@ -52,33 +53,54 @@ def _coerce_str_tuple(values: Any) -> tuple[str, ...]:
     return tuple(str(item).strip() for item in values if str(item).strip())
 
 
-def _default_brand_records() -> list[dict[str, Any]]:
-    """Load raw brand records from the default JSON file."""
-    if not BRAND_PROFILE_PATH.exists():
+def _load_raw_records(path: Path) -> list[dict[str, Any]]:
+    """Load raw brand records from a single JSON file."""
+    if not path.exists():
         return []
     try:
-        payload = json.loads(BRAND_PROFILE_PATH.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return []
     brands = payload.get("brands", [])
     return [item for item in brands if isinstance(item, dict)]
 
 
+def _default_brand_records() -> list[dict[str, Any]]:
+    """Load raw brand records from the default JSON files (generic + banks)."""
+    records: list[dict[str, Any]] = []
+    records.extend(_load_raw_records(BRAND_PROFILE_PATH))
+    records.extend(_load_raw_records(BRAND_PROFILE_BANKS_PATH))
+    return records
+
+
 @lru_cache(maxsize=1)
 def load_brand_profiles(path: str | Path | None = None) -> tuple[BrandProfile, ...]:
-    """Load and cache brand profiles from a JSON file on disk."""
+    """Load and cache brand profiles from a JSON file on disk.
+
+    When loading the default ``brand_profiles.json``, the bank inventory
+    from ``brand_profiles_banks.json`` is automatically concatenated.
+    """
     source_path = Path(path) if path else BRAND_PROFILE_PATH
+    records: list[dict[str, Any]] = []
+
     if source_path.exists():
         try:
             payload = json.loads(source_path.read_text(encoding="utf-8"))
+            records.extend(
+                item for item in payload.get("brands", []) if isinstance(item, dict)
+            )
         except Exception:
-            payload = {"brands": _default_brand_records()}
-    else:
-        payload = {"brands": _default_brand_records()}
+            pass
 
-    brands = payload.get("brands", [])
+    # Merge bank inventory when loading the default profile
+    if source_path == BRAND_PROFILE_PATH:
+        records.extend(_load_raw_records(BRAND_PROFILE_BANKS_PATH))
+
+    if not records:
+        records = _default_brand_records()
+
     profiles: list[BrandProfile] = []
-    for item in brands:
+    for item in records:
         if not isinstance(item, dict):
             continue
         profiles.append(
@@ -102,7 +124,9 @@ def all_brand_tokens(profiles: Iterable[BrandProfile] | None = None) -> tuple[st
     return tuple(sorted(token for token in tokens if token))
 
 
-def build_brand_lookup(profiles: Iterable[BrandProfile] | None = None) -> dict[str, BrandProfile]:
+def build_brand_lookup(
+    profiles: Iterable[BrandProfile] | None = None,
+) -> dict[str, BrandProfile]:
     """Map each normalised brand token to its parent ``BrandProfile``."""
     lookup: dict[str, BrandProfile] = {}
     for profile in profiles or load_brand_profiles():
@@ -118,7 +142,9 @@ def host_matches_brand(host: str, profile: BrandProfile) -> bool:
         return False
     for domain in profile.official_domains:
         domain = domain.lower().strip()
-        if domain and (normalized_host == domain or normalized_host.endswith(f".{domain}")):
+        if domain and (
+            normalized_host == domain or normalized_host.endswith(f".{domain}")
+        ):
             return True
     return False
 

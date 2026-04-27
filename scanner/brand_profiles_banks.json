@@ -1,0 +1,805 @@
+{
+  "schema_version": "brand_profiles_v1",
+  "brands": [
+    {
+      "name": "JPMorgan Chase",
+      "aliases": ["chase", "jpmorgan chase", "jpmorgan", "jp morgan"],
+      "official_domains": ["chase.com", "jpmorgan.com", "chaseonline.chase.com", "secure07a.chase.com"],
+      "logo_keywords": ["chase", "jpmorgan"],
+      "login_phrases": ["sign in", "secure sign in", "online banking", "chase online"],
+      "suspicious_phrases": ["verify your account", "account locked", "unusual sign-on activity", "confirm your identity"]
+    },
+    {
+      "name": "Bank of America",
+      "aliases": ["bank of america", "bofa", "bankofamerica"],
+      "official_domains": ["bankofamerica.com", "secure.bankofamerica.com", "ml.com"],
+      "logo_keywords": ["bank of america", "bofa"],
+      "login_phrases": ["sign in", "online banking", "online id", "passcode"],
+      "suspicious_phrases": ["verify your identity", "account suspended", "unusual activity detected", "update your information"]
+    },
+    {
+      "name": "Wells Fargo",
+      "aliases": ["wells fargo", "wellsfargo", "wf"],
+      "official_domains": ["wellsfargo.com", "connect.secure.wellsfargo.com", "online.wellsfargo.com", "wellsfargoadvisors.com"],
+      "logo_keywords": ["wells fargo", "wf"],
+      "login_phrases": ["sign on", "username", "online banking", "wells fargo online"],
+      "suspicious_phrases": ["confirm your identity", "account locked", "unusual sign-on activity", "verify your debit card"]
+    },
+    {
+      "name": "Citibank",
+      "aliases": ["citi", "citibank", "citi bank"],
+      "official_domains": ["citi.com", "online.citi.com", "citibankonline.com", "citicorp.com"],
+      "logo_keywords": ["citi", "citibank"],
+      "login_phrases": ["sign on", "user id", "password", "citi online"],
+      "suspicious_phrases": ["verify your account", "security alert", "account access limited", "confirm your card"]
+    },
+    {
+      "name": "U.S. Bank",
+      "aliases": ["us bank", "usbank"],
+      "official_domains": ["usbank.com", "onlinebanking.usbank.com", "usbankrewardscard.com"],
+      "logo_keywords": ["us bank", "usbank"],
+      "login_phrases": ["login", "personal id", "online banking", "usbank online"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "unusual login attempt", "update your profile"]
+    },
+    {
+      "name": "PNC Bank",
+      "aliases": ["pnc", "pnc bank"],
+      "official_domains": ["pnc.com", "onlinebanking.pnc.com", "pncbank.com"],
+      "logo_keywords": ["pnc"],
+      "login_phrases": ["sign on", "user id", "online banking", "virtual wallet"],
+      "suspicious_phrases": ["verify your account", "account locked", "security concern", "confirm your information"]
+    },
+    {
+      "name": "Truist",
+      "aliases": ["truist", "truist bank", "suntrust", "bb&t"],
+      "official_domains": ["truist.com", "dias.bank.truist.com", "suntrust.com"],
+      "logo_keywords": ["truist", "suntrust"],
+      "login_phrases": ["sign in", "online banking", "user id", "truist online"],
+      "suspicious_phrases": ["verify your identity", "account access restricted", "unusual activity", "update your details"]
+    },
+    {
+      "name": "Goldman Sachs",
+      "aliases": ["goldman sachs", "goldman", "marcus"],
+      "official_domains": ["goldmansachs.com", "marcus.com", "gs.com"],
+      "logo_keywords": ["goldman sachs", "marcus"],
+      "login_phrases": ["sign in", "login", "marcus account", "online access"],
+      "suspicious_phrases": ["verify your account", "security notice", "account review", "confirm your identity"]
+    },
+    {
+      "name": "Capital One",
+      "aliases": ["capital one", "capitalone"],
+      "official_domains": ["capitalone.com", "verified.capitalone.com", "capitalone360.com"],
+      "logo_keywords": ["capital one"],
+      "login_phrases": ["sign in", "username", "online banking", "capital one login"],
+      "suspicious_phrases": ["verify your account", "account restricted", "unusual sign-in", "confirm your card"]
+    },
+    {
+      "name": "TD Bank",
+      "aliases": ["td bank", "tdbank", "toronto dominion"],
+      "official_domains": ["td.com", "onlinebanking.tdbank.com", "tdeasyweb.ca"],
+      "logo_keywords": ["td bank", "td"],
+      "login_phrases": ["login", "user name", "online banking", "easyweb"],
+      "suspicious_phrases": ["verify your identity", "account locked", "security alert", "update your information"]
+    },
+    {
+      "name": "Charles Schwab",
+      "aliases": ["charles schwab", "schwab"],
+      "official_domains": ["schwab.com", "client.schwab.com", "schwabplan.com"],
+      "logo_keywords": ["schwab", "charles schwab"],
+      "login_phrases": ["login", "client login", "schwab account", "online access"],
+      "suspicious_phrases": ["verify your account", "account review", "security notice", "confirm your identity"]
+    },
+    {
+      "name": "Ally Bank",
+      "aliases": ["ally", "ally bank"],
+      "official_domains": ["ally.com", "secure.ally.com", "allybank.com"],
+      "logo_keywords": ["ally"],
+      "login_phrases": ["sign in", "username", "online banking", "ally login"],
+      "suspicious_phrases": ["verify your identity", "account locked", "security alert", "update your profile"]
+    },
+    {
+      "name": "Discover Bank",
+      "aliases": ["discover", "discover bank", "discover card"],
+      "official_domains": ["discover.com", "portal.discover.com", "discoverbank.com"],
+      "logo_keywords": ["discover"],
+      "login_phrases": ["log in", "account center", "discover login", "online account"],
+      "suspicious_phrases": ["verify your account", "account restricted", "security concern", "confirm your card"]
+    },
+    {
+      "name": "Citizens Bank",
+      "aliases": ["citizens", "citizens bank"],
+      "official_domains": ["citizensbank.com", "online.citizensbank.com", "citizensbankonline.com"],
+      "logo_keywords": ["citizens"],
+      "login_phrases": ["login", "online banking", "user id", "citizens login"],
+      "suspicious_phrases": ["verify your identity", "account locked", "unusual activity", "update your details"]
+    },
+    {
+      "name": "Fifth Third Bank",
+      "aliases": ["fifth third", "fifth third bank", "53 bank"],
+      "official_domains": ["53.com", "login.53.com", "fifththird.com"],
+      "logo_keywords": ["fifth third", "53"],
+      "login_phrases": ["login", "online banking", "user id", "fifth third login"],
+      "suspicious_phrases": ["verify your account", "account restricted", "security alert", "confirm your identity"]
+    },
+    {
+      "name": "KeyBank",
+      "aliases": ["keybank", "key bank"],
+      "official_domains": ["key.com", "onlinebanking.key.com", "keybank.com"],
+      "logo_keywords": ["keybank"],
+      "login_phrases": ["sign on", "online banking", "user id", "keybank login"],
+      "suspicious_phrases": ["verify your identity", "account locked", "unusual sign-on", "update your information"]
+    },
+    {
+      "name": "Regions Bank",
+      "aliases": ["regions", "regions bank"],
+      "official_domains": ["regions.com", "onlinebanking.regions.com", "regionsbank.com"],
+      "logo_keywords": ["regions"],
+      "login_phrases": ["log in", "online banking", "user id", "regions login"],
+      "suspicious_phrases": ["verify your account", "account restricted", "security alert", "confirm your details"]
+    },
+    {
+      "name": "M&T Bank",
+      "aliases": ["m&t", "m&t bank", "mt bank"],
+      "official_domains": ["mtb.com", "onlinebanking.mtb.com", "mtbank.com"],
+      "logo_keywords": ["m&t", "mt"],
+      "login_phrases": ["login", "online banking", "user id", "m&t login"],
+      "suspicious_phrases": ["verify your identity", "account locked", "unusual activity", "update your profile"]
+    },
+    {
+      "name": "Huntington Bank",
+      "aliases": ["huntington", "huntington bank"],
+      "official_domains": ["huntington.com", "onlinebanking.huntington.com", "huntingtonbank.com"],
+      "logo_keywords": ["huntington"],
+      "login_phrases": ["sign in", "online banking", "user id", "huntington login"],
+      "suspicious_phrases": ["verify your account", "account restricted", "security alert", "confirm your identity"]
+    },
+    {
+      "name": "Northern Trust",
+      "aliases": ["northern trust"],
+      "official_domains": ["northerntrust.com", "online.northerntrust.com"],
+      "logo_keywords": ["northern trust"],
+      "login_phrases": ["login", "client login", "northern trust online", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account review", "security notice", "confirm your access"]
+    },
+    {
+      "name": "BNY Mellon",
+      "aliases": ["bny mellon", "bank of new york mellon", "bnymellon"],
+      "official_domains": ["bnymellon.com", "online.bnymellon.com"],
+      "logo_keywords": ["bny mellon"],
+      "login_phrases": ["login", "client access", "bny mellon online", "secure login"],
+      "suspicious_phrases": ["verify your account", "account review", "security alert", "confirm your identity"]
+    },
+    {
+      "name": "State Street",
+      "aliases": ["state street"],
+      "official_domains": ["statestreet.com", "online.statestreet.com"],
+      "logo_keywords": ["state street"],
+      "login_phrases": ["login", "client login", "state street online", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account review", "security notice", "confirm your access"]
+    },
+    {
+      "name": "American Express",
+      "aliases": ["american express", "amex"],
+      "official_domains": ["americanexpress.com", "online.americanexpress.com", "amex.com"],
+      "logo_keywords": ["american express", "amex"],
+      "login_phrases": ["log in", "account login", "amex login", "online account"],
+      "suspicious_phrases": ["verify your account", "account restricted", "security alert", "confirm your card"]
+    },
+    {
+      "name": "USAA",
+      "aliases": ["usaa"],
+      "official_domains": ["usaa.com", "login.usaa.com", "usaa.bank"],
+      "logo_keywords": ["usaa"],
+      "login_phrases": ["log on", "online banking", "usaa login", "member access"],
+      "suspicious_phrases": ["verify your identity", "account locked", "unusual activity", "confirm your details"]
+    },
+    {
+      "name": "Navy Federal Credit Union",
+      "aliases": ["navy federal", "navy federal credit union", "nfcu"],
+      "official_domains": ["navyfederal.org", "login.navyfederal.org", "navyfcu.org"],
+      "logo_keywords": ["navy federal", "nfcu"],
+      "login_phrases": ["sign in", "online banking", "navy federal login", "member access"],
+      "suspicious_phrases": ["verify your identity", "account locked", "security alert", "update your information"]
+    },
+    {
+      "name": "SoFi",
+      "aliases": ["sofi"],
+      "official_domains": ["sofi.com", "login.sofi.com", "sofi.bank"],
+      "logo_keywords": ["sofi"],
+      "login_phrases": ["login", "sign in", "sofi login", "online banking"],
+      "suspicious_phrases": ["verify your account", "account restricted", "security alert", "confirm your identity"]
+    },
+    {
+      "name": "Chime",
+      "aliases": ["chime"],
+      "official_domains": ["chime.com", "login.chime.com", "chime.bank"],
+      "logo_keywords": ["chime"],
+      "login_phrases": ["login", "sign in", "chime login", "online banking"],
+      "suspicious_phrases": ["verify your identity", "account locked", "security alert", "update your profile"]
+    },
+    {
+      "name": "Varo Bank",
+      "aliases": ["varo", "varo bank"],
+      "official_domains": ["varomoney.com", "login.varomoney.com", "varo.bank"],
+      "logo_keywords": ["varo"],
+      "login_phrases": ["login", "sign in", "varo login", "online banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your details"]
+    },
+    {
+      "name": "First Republic Bank",
+      "aliases": ["first republic"],
+      "official_domains": ["firstrepublic.com", "online.firstrepublic.com"],
+      "logo_keywords": ["first republic"],
+      "login_phrases": ["login", "online banking", "first republic login", "client access"],
+      "suspicious_phrases": ["verify your identity", "account review", "security notice", "confirm your access"]
+    },
+    {
+      "name": "Silicon Valley Bank",
+      "aliases": ["silicon valley bank", "svb"],
+      "official_domains": ["svb.com", "online.svb.com"],
+      "logo_keywords": ["svb", "silicon valley bank"],
+      "login_phrases": ["login", "client login", "svb online", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account review", "security alert", "confirm your access"]
+    },
+    {
+      "name": "HSBC",
+      "aliases": ["hsbc", "hsbc bank"],
+      "official_domains": ["hsbc.com", "www.hsbc.com", "hsbc.co.uk", "hsbc.com.hk"],
+      "logo_keywords": ["hsbc"],
+      "login_phrases": ["log on", "online banking", "hsbc login", "internet banking"],
+      "suspicious_phrases": ["verify your account", "account restricted", "security alert", "confirm your identity"]
+    },
+    {
+      "name": "Barclays",
+      "aliases": ["barclays", "barclays bank"],
+      "official_domains": ["barclays.co.uk", "bank.barclays.co.uk", "barclays.com"],
+      "logo_keywords": ["barclays"],
+      "login_phrases": ["log in", "online banking", "barclays login", "pin sentry"],
+      "suspicious_phrases": ["verify your identity", "account locked", "unusual activity", "confirm your details"]
+    },
+    {
+      "name": "Lloyds Bank",
+      "aliases": ["lloyds", "lloyds bank", "lloyds tsb"],
+      "official_domains": ["lloydsbank.com", "online.lloydsbank.co.uk", "lloydsbank.co.uk"],
+      "logo_keywords": ["lloyds", "lloyds bank"],
+      "login_phrases": ["log in", "online banking", "lloyds login", "internet banking"],
+      "suspicious_phrases": ["verify your identity", "account locked", "security alert", "update your information"]
+    },
+    {
+      "name": "NatWest",
+      "aliases": ["natwest", "national westminster bank"],
+      "official_domains": ["natwest.com", "onlinebanking.natwest.com", "natwestgroup.com"],
+      "logo_keywords": ["natwest"],
+      "login_phrases": ["log in", "online banking", "natwest login", "internet banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "unusual activity", "confirm your details"]
+    },
+    {
+      "name": "Santander",
+      "aliases": ["santander", "santander bank"],
+      "official_domains": ["santander.com", "retail.santander.co.uk", "santanderbank.com"],
+      "logo_keywords": ["santander"],
+      "login_phrases": ["log on", "online banking", "santander login", "internet banking"],
+      "suspicious_phrases": ["verify your account", "account locked", "security alert", "confirm your identity"]
+    },
+    {
+      "name": "BNP Paribas",
+      "aliases": ["bnp paribas", "bnp"],
+      "official_domains": ["bnpparibas.com", "mabanque.bnpparibas", "bnpparibas.fr"],
+      "logo_keywords": ["bnp paribas", "bnp"],
+      "login_phrases": ["login", "online banking", "bnp paribas login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Societe Generale",
+      "aliases": ["societe generale", "socgen"],
+      "official_domains": ["societegenerale.com", "particuliers.societegenerale.fr"],
+      "logo_keywords": ["societe generale", "socgen"],
+      "login_phrases": ["login", "online banking", "societe generale login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Credit Agricole",
+      "aliases": ["credit agricole"],
+      "official_domains": ["credit-agricole.fr", "www.credit-agricole.fr", "ca-paris.fr"],
+      "logo_keywords": ["credit agricole"],
+      "login_phrases": ["login", "online banking", "credit agricole login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Deutsche Bank",
+      "aliases": ["deutsche bank"],
+      "official_domains": ["deutsche-bank.de", "onlinebanking.deutsche-bank.de", "db.com"],
+      "logo_keywords": ["deutsche bank", "db"],
+      "login_phrases": ["login", "online banking", "deutsche bank login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Commerzbank",
+      "aliases": ["commerzbank"],
+      "official_domains": ["commerzbank.de", "onlinebanking.commerzbank.de", "comdirect.de"],
+      "logo_keywords": ["commerzbank"],
+      "login_phrases": ["login", "online banking", "commerzbank login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "ING",
+      "aliases": ["ing", "ing bank"],
+      "official_domains": ["ing.com", "banking.ing.de", "ing.nl"],
+      "logo_keywords": ["ing"],
+      "login_phrases": ["login", "online banking", "ing login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Rabobank",
+      "aliases": ["rabobank"],
+      "official_domains": ["rabobank.nl", "online.rabobank.nl", "rabobank.com"],
+      "logo_keywords": ["rabobank"],
+      "login_phrases": ["login", "online banking", "rabobank login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "ABN AMRO",
+      "aliases": ["abn amro"],
+      "official_domains": ["abnamro.nl", "login.abnamro.nl", "abnamro.com"],
+      "logo_keywords": ["abn amro"],
+      "login_phrases": ["login", "online banking", "abn amro login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "UBS",
+      "aliases": ["ubs"],
+      "official_domains": ["ubs.com", "onlinebanking.ubs.com", "ubs.ch"],
+      "logo_keywords": ["ubs"],
+      "login_phrases": ["login", "online banking", "ubs login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Credit Suisse",
+      "aliases": ["credit suisse", "cs"],
+      "official_domains": ["credit-suisse.com", "onlinebanking.credit-suisse.com", "cs.com"],
+      "logo_keywords": ["credit suisse", "cs"],
+      "login_phrases": ["login", "online banking", "credit suisse login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Julius Baer",
+      "aliases": ["julius baer"],
+      "official_domains": ["juliusbaer.com", "online.juliusbaer.com"],
+      "logo_keywords": ["julius baer"],
+      "login_phrases": ["login", "online banking", "julius baer login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Standard Chartered",
+      "aliases": ["standard chartered"],
+      "official_domains": ["sc.com", "onlinebanking.sc.com", "standardchartered.com"],
+      "logo_keywords": ["standard chartered", "sc"],
+      "login_phrases": ["login", "online banking", "standard chartered login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "UniCredit",
+      "aliases": ["unicredit"],
+      "official_domains": ["unicredit.it", "onlinebanking.unicredit.it", "unicreditgroup.eu"],
+      "logo_keywords": ["unicredit"],
+      "login_phrases": ["login", "online banking", "unicredit login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Intesa Sanpaolo",
+      "aliases": ["intesa sanpaolo"],
+      "official_domains": ["intesasanpaolo.com", "onlinebanking.intesasanpaolo.com"],
+      "logo_keywords": ["intesa sanpaolo"],
+      "login_phrases": ["login", "online banking", "intesa sanpaolo login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Nordea",
+      "aliases": ["nordea"],
+      "official_domains": ["nordea.com", "netbank.nordea.com", "nordea.fi"],
+      "logo_keywords": ["nordea"],
+      "login_phrases": ["login", "online banking", "nordea login", "netbank"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "SEB",
+      "aliases": ["seb"],
+      "official_domains": ["seb.se", "internetbanken.seb.se", "sebgroup.com"],
+      "logo_keywords": ["seb"],
+      "login_phrases": ["login", "online banking", "seb login", "internet bank"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Swedbank",
+      "aliases": ["swedbank"],
+      "official_domains": ["swedbank.se", "online.swedbank.se", "swedbank.com"],
+      "logo_keywords": ["swedbank"],
+      "login_phrases": ["login", "online banking", "swedbank login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Danske Bank",
+      "aliases": ["danske bank"],
+      "official_domains": ["danskebank.dk", "danskebank.com", "danskebank.no"],
+      "logo_keywords": ["danske bank"],
+      "login_phrases": ["login", "online banking", "danske bank login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "KBC",
+      "aliases": ["kbc", "kbc bank"],
+      "official_domains": ["kbc.be", "onlinebanking.kbc.be", "kbc.com"],
+      "logo_keywords": ["kbc"],
+      "login_phrases": ["login", "online banking", "kbc login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Erste Group",
+      "aliases": ["erste", "erste bank", "erste group"],
+      "official_domains": ["erstebank.com", "online.erstebank.com", "erstegroup.com"],
+      "logo_keywords": ["erste"],
+      "login_phrases": ["login", "online banking", "erste login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Industrial and Commercial Bank of China",
+      "aliases": ["icbc", "industrial and commercial bank of china"],
+      "official_domains": ["icbc.com.cn", "mybank.icbc.com.cn", "icbc-ltd.com"],
+      "logo_keywords": ["icbc"],
+      "login_phrases": ["login", "online banking", "icbc login", "internet banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "China Construction Bank",
+      "aliases": ["china construction bank", "ccb"],
+      "official_domains": ["ccb.com", "ibsb.ccb.com", "ccb.com.cn"],
+      "logo_keywords": ["ccb", "china construction bank"],
+      "login_phrases": ["login", "online banking", "ccb login", "internet banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Agricultural Bank of China",
+      "aliases": ["agricultural bank of china", "abc bank"],
+      "official_domains": ["abchina.com", "e.abchina.com", "abchina.com.cn"],
+      "logo_keywords": ["abc", "agricultural bank of china"],
+      "login_phrases": ["login", "online banking", "abc login", "internet banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Bank of China",
+      "aliases": ["bank of china", "boc"],
+      "official_domains": ["boc.cn", "ebsnew.boc.cn", "bankofchina.com"],
+      "logo_keywords": ["boc", "bank of china"],
+      "login_phrases": ["login", "online banking", "boc login", "internet banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Bank of Communications",
+      "aliases": ["bank of communications", "bocom"],
+      "official_domains": ["bankcomm.com", "pbank.bankcomm.com", "bocom.com"],
+      "logo_keywords": ["bocom", "bank of communications"],
+      "login_phrases": ["login", "online banking", "bocom login", "internet banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "China Merchants Bank",
+      "aliases": ["china merchants bank", "cmb"],
+      "official_domains": ["cmbchina.com", "pbsz.ebank.cmbchina.com", "cmb.com"],
+      "logo_keywords": ["cmb", "china merchants bank"],
+      "login_phrases": ["login", "online banking", "cmb login", "internet banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "MUFG",
+      "aliases": ["mufg", "mitsubishi ufj", "mitsubishi ufj financial group"],
+      "official_domains": ["mufg.jp", "direct.bk.mufg.jp", "mufg.com"],
+      "logo_keywords": ["mufg", "mitsubishi ufj"],
+      "login_phrases": ["login", "online banking", "mufg login", "internet banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Mizuho",
+      "aliases": ["mizuho", "mizuho bank", "mizuho financial group"],
+      "official_domains": ["mizuhobank.com", "web.ib.mizuhobank.co.jp", "mizuho-fg.co.jp"],
+      "logo_keywords": ["mizuho"],
+      "login_phrases": ["login", "online banking", "mizuho login", "internet banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Sumitomo Mitsui Banking Corporation",
+      "aliases": ["smbc", "sumitomo mitsui", "sumitomo mitsui banking corporation"],
+      "official_domains": ["smbc.co.jp", "direct.smbc.co.jp", "smbc.com"],
+      "logo_keywords": ["smbc", "sumitomo mitsui"],
+      "login_phrases": ["login", "online banking", "smbc login", "internet banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Nomura",
+      "aliases": ["nomura"],
+      "official_domains": ["nomura.com", "online.nomura.co.jp", "nomuraholdings.com"],
+      "logo_keywords": ["nomura"],
+      "login_phrases": ["login", "online banking", "nomura login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "DBS Bank",
+      "aliases": ["dbs", "dbs bank", "development bank of singapore"],
+      "official_domains": ["dbs.com.sg", "internetbanking.dbs.com.sg", "dbs.com"],
+      "logo_keywords": ["dbs"],
+      "login_phrases": ["login", "online banking", "dbs login", "internet banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "OCBC",
+      "aliases": ["ocbc", "ocbc bank", "oversea-chinese banking corporation"],
+      "official_domains": ["ocbc.com", "internet.ocbc.com", "ocbc.com.sg"],
+      "logo_keywords": ["ocbc"],
+      "login_phrases": ["login", "online banking", "ocbc login", "internet banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "UOB",
+      "aliases": ["uob", "united overseas bank"],
+      "official_domains": ["uob.com.sg", "pib.uob.com.sg", "uob.com"],
+      "logo_keywords": ["uob"],
+      "login_phrases": ["login", "online banking", "uob login", "internet banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Maybank",
+      "aliases": ["maybank", "malayan banking"],
+      "official_domains": ["maybank2u.com.my", "maybank.com", "maybank2u.com.sg"],
+      "logo_keywords": ["maybank"],
+      "login_phrases": ["login", "online banking", "maybank login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "CIMB",
+      "aliases": ["cimb", "cimb bank"],
+      "official_domains": ["cimbclicks.com.my", "cimb.com", "cimb.com.sg"],
+      "logo_keywords": ["cimb"],
+      "login_phrases": ["login", "online banking", "cimb login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "HDFC Bank",
+      "aliases": ["hdfc", "hdfc bank"],
+      "official_domains": ["hdfcbank.com", "netbanking.hdfcbank.com", "hdfc.com"],
+      "logo_keywords": ["hdfc"],
+      "login_phrases": ["login", "netbanking", "hdfc login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "ICICI Bank",
+      "aliases": ["icici", "icici bank"],
+      "official_domains": ["icicibank.com", "infinity.icicibank.com", "icici.com"],
+      "logo_keywords": ["icici"],
+      "login_phrases": ["login", "internet banking", "icici login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "State Bank of India",
+      "aliases": ["sbi", "state bank of india"],
+      "official_domains": ["onlinesbi.sbi", "bank.sbi", "sbi.co.in"],
+      "logo_keywords": ["sbi", "state bank of india"],
+      "login_phrases": ["login", "online sbi", "sbi login", "internet banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Axis Bank",
+      "aliases": ["axis", "axis bank"],
+      "official_domains": ["axisbank.com", "retail.axisbank.co.in", "axisbank.co.in"],
+      "logo_keywords": ["axis"],
+      "login_phrases": ["login", "internet banking", "axis login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Kotak Mahindra Bank",
+      "aliases": ["kotak", "kotak mahindra", "kotak bank"],
+      "official_domains": ["kotak.com", "netbanking.kotak.com", "kotakbank.com"],
+      "logo_keywords": ["kotak"],
+      "login_phrases": ["login", "net banking", "kotak login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Emirates NBD",
+      "aliases": ["emirates nbd"],
+      "official_domains": ["emiratesnbd.com", "online.emiratesnbd.com", "emiratesnbd.com.ae"],
+      "logo_keywords": ["emirates nbd"],
+      "login_phrases": ["login", "online banking", "emirates nbd login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Abu Dhabi Commercial Bank",
+      "aliases": ["adcb", "abu dhabi commercial bank"],
+      "official_domains": ["adcb.com", "online.adcb.com", "adcb.com.ae"],
+      "logo_keywords": ["adcb"],
+      "login_phrases": ["login", "online banking", "adcb login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Qatar National Bank",
+      "aliases": ["qnb", "qatar national bank"],
+      "official_domains": ["qnb.com", "online.qnb.com", "qnb.com.qa"],
+      "logo_keywords": ["qnb"],
+      "login_phrases": ["login", "online banking", "qnb login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Saudi National Bank",
+      "aliases": ["snb", "saudi national bank", "national commercial bank"],
+      "official_domains": ["alahlionline.com", "snb.com.sa", "snb.com"],
+      "logo_keywords": ["snb", "saudi national bank"],
+      "login_phrases": ["login", "online banking", "snb login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Itau Unibanco",
+      "aliases": ["itau", "itau unibanco"],
+      "official_domains": ["itau.com.br", "www.itau.com.br", "itau.com"],
+      "logo_keywords": ["itau"],
+      "login_phrases": ["login", "internet banking", "itau login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Bradesco",
+      "aliases": ["bradesco"],
+      "official_domains": ["bradesco.com.br", "www.bradesco.com.br", "banco.bradesco"],
+      "logo_keywords": ["bradesco"],
+      "login_phrases": ["login", "internet banking", "bradesco login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Banco do Brasil",
+      "aliases": ["banco do brasil", "bb"],
+      "official_domains": ["bb.com.br", "www.bb.com.br", "bancodobrasil.com.br"],
+      "logo_keywords": ["bb", "banco do brasil"],
+      "login_phrases": ["login", "internet banking", "bb login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "BBVA",
+      "aliases": ["bbva", "bbva bancomer"],
+      "official_domains": ["bbva.com", "www.bbva.com", "bbva.com.mx"],
+      "logo_keywords": ["bbva"],
+      "login_phrases": ["login", "online banking", "bbva login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Scotiabank",
+      "aliases": ["scotiabank", "bank of nova scotia"],
+      "official_domains": ["scotiabank.com", "www1.scotiabank.com", "scotiabank.ca"],
+      "logo_keywords": ["scotiabank"],
+      "login_phrases": ["login", "online banking", "scotiabank login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Royal Bank of Canada",
+      "aliases": ["rbc", "royal bank of canada"],
+      "official_domains": ["rbcroyalbank.com", "www1.rbcroyalbank.com", "rbc.com"],
+      "logo_keywords": ["rbc", "royal bank of canada"],
+      "login_phrases": ["login", "online banking", "rbc login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "TD Canada Trust",
+      "aliases": ["td", "td canada trust", "toronto dominion bank"],
+      "official_domains": ["td.com", "easyweb.td.com", "tdcanadatrust.com"],
+      "logo_keywords": ["td", "td canada trust"],
+      "login_phrases": ["login", "easyweb", "td login", "online banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Westpac",
+      "aliases": ["westpac"],
+      "official_domains": ["westpac.com.au", "onlinebanking.westpac.com.au", "westpac.co.nz"],
+      "logo_keywords": ["westpac"],
+      "login_phrases": ["login", "online banking", "westpac login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "ANZ",
+      "aliases": ["anz", "australia and new zealand banking group"],
+      "official_domains": ["anz.com", "login.anz.com", "anz.com.au"],
+      "logo_keywords": ["anz"],
+      "login_phrases": ["login", "internet banking", "anz login", "secure access"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Commonwealth Bank",
+      "aliases": ["commonwealth bank", "cba", "commbank"],
+      "official_domains": ["commbank.com.au", "netbank.commbank.com.au", "commbank.com"],
+      "logo_keywords": ["commonwealth bank", "commbank", "cba"],
+      "login_phrases": ["login", "netbank", "commbank login", "online banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "National Australia Bank",
+      "aliases": ["nab", "national australia bank"],
+      "official_domains": ["nab.com.au", "ib.nab.com.au", "nab.com"],
+      "logo_keywords": ["nab"],
+      "login_phrases": ["login", "internet banking", "nab login", "online banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Revolut",
+      "aliases": ["revolut"],
+      "official_domains": ["revolut.com", "app.revolut.com"],
+      "logo_keywords": ["revolut"],
+      "login_phrases": ["login", "sign in", "revolut login", "online banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Wise",
+      "aliases": ["wise", "transferwise"],
+      "official_domains": ["wise.com", "app.wise.com", "transferwise.com"],
+      "logo_keywords": ["wise", "transferwise"],
+      "login_phrases": ["login", "sign in", "wise login", "online banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "N26",
+      "aliases": ["n26"],
+      "official_domains": ["n26.com", "app.n26.com"],
+      "logo_keywords": ["n26"],
+      "login_phrases": ["login", "sign in", "n26 login", "online banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Monzo",
+      "aliases": ["monzo"],
+      "official_domains": ["monzo.com", "app.monzo.com"],
+      "logo_keywords": ["monzo"],
+      "login_phrases": ["login", "sign in", "monzo login", "online banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Starling Bank",
+      "aliases": ["starling", "starling bank"],
+      "official_domains": ["starlingbank.com", "app.starlingbank.com"],
+      "logo_keywords": ["starling"],
+      "login_phrases": ["login", "sign in", "starling login", "online banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Nubank",
+      "aliases": ["nubank"],
+      "official_domains": ["nubank.com.br", "app.nubank.com.br", "nubank.com"],
+      "logo_keywords": ["nubank"],
+      "login_phrases": ["login", "sign in", "nubank login", "online banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Mercury",
+      "aliases": ["mercury"],
+      "official_domains": ["mercury.com", "app.mercury.com"],
+      "logo_keywords": ["mercury"],
+      "login_phrases": ["login", "sign in", "mercury login", "online banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Brex",
+      "aliases": ["brex"],
+      "official_domains": ["brex.com", "dashboard.brex.com"],
+      "logo_keywords": ["brex"],
+      "login_phrases": ["login", "sign in", "brex login", "online banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Cash App",
+      "aliases": ["cash app", "square cash"],
+      "official_domains": ["cash.app", "app.cash.app"],
+      "logo_keywords": ["cash app", "square"],
+      "login_phrases": ["login", "sign in", "cash app login", "online banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    },
+    {
+      "name": "Klarna",
+      "aliases": ["klarna"],
+      "official_domains": ["klarna.com", "app.klarna.com"],
+      "logo_keywords": ["klarna"],
+      "login_phrases": ["login", "sign in", "klarna login", "online banking"],
+      "suspicious_phrases": ["verify your identity", "account restricted", "security alert", "confirm your access"]
+    }
+  ]
+}

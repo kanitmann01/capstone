@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Brand Guard Benchmark</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/theme/white.css">
+<style>
+  :root { --r-background-color: #f8fafc; --r-main-font: 'Segoe UI', system-ui, sans-serif; }
+  .reveal h1, .reveal h2, .reveal h3 { font-weight: 700; color: #0f172a; text-transform: none; }
+  .reveal h1 { font-size: 2.2rem; }
+  .reveal h2 { font-size: 1.6rem; }
+  .reveal p, .reveal li { font-size: 0.95rem; color: #334155; }
+  .reveal .slides section { text-align: left; }
+  .reveal img { max-height: 55vh; border-radius: 8px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+  .reveal .center { text-align: center; }
+  .tag { display:inline-block; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; background:#e2e8f0; color:#475569; margin-right:0.4rem; }
+  .tag-green { background:#dcfce7; color:#166534; }
+  .tag-red { background:#fee2e2; color:#991b1b; }
+  .tag-blue { background:#dbeafe; color:#1e40af; }
+  .big-number { font-size: 3rem; font-weight: 800; color: #0f172a; }
+  .reveal blockquote { background:#f1f5f9; border-left: 4px solid #3b82f6; padding: 1rem; font-style: normal; }
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- Slide 1: Title -->
+<section class="center">
+  <h1>Brand Guard</h1>
+  <p style="font-size:1.15rem; color:#475569;">Explainable, brand-aware phishing triage that beats heuristics, blocklists, and generic ML — in one scan.</p>
+  <p style="margin-top:2rem; font-size:0.85rem; color:#94a3b8;">Capstone Benchmark &middot; 12 Slides &middot; ~12 Minutes</p>
+</section>
+
+<!-- Slide 2: The Problem -->
+<section>
+  <h2>The Problem</h2>
+  <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-top: 1.5rem;">
+    <div class="center">
+      <div class="big-number">+76%</div>
+      <p>Phishing losses YoY</p>
+    </div>
+    <div class="center">
+      <div class="big-number">90%</div>
+      <p>Of breaches start with phishing</p>
+    </div>
+    <div class="center">
+      <div class="big-number">&lt;24h</div>
+      <p>Median phishing page lifetime</p>
+    </div>
+  </div>
+  <p style="margin-top: 2rem;">Reactive blocklists are always behind. <strong>Day-zero detection</strong> — catching a page before any feed lists it — is the battleground.</p>
+</section>
+
+<!-- Slide 3: Three Families -->
+<section>
+  <h2>Three Families of Existing Tools</h2>
+  <table style="width:100%; font-size:0.9rem; margin-top:1rem;">
+    <tr style="background:#e2e8f0;"><th>Family</th><th>Example</th><th>Strength</th><th>Weakness</th></tr>
+    <tr><td><span class="tag tag-red">Rule-based</span></td><td>URL heuristics</td><td>Fast, offline</td><td>Content-blind</td></tr>
+    <tr><td><span class="tag tag-blue">Blocklist</span></td><td>Netstar, GSB</td><td>Industry-grade</td><td>Day-zero blind</td></tr>
+    <tr><td><span class="tag">Generic ML</span></td><td>HF BERT classifier</td><td>Learns patterns</td><td>Brand-blind</td></tr>
+  </table>
+  <p style="margin-top:1.5rem;"><strong>Brand Guard transcends all three</strong> by combining brand reasoning, content analysis, heuristics, intel, and explainability.</p>
+</section>
+
+<!-- Slide 4: Architecture -->
+<section>
+  <h2>What We Built</h2>
+  <p>URL &rarr; Snapshot &rarr; 5 Detectors &rarr; Composite Score &rarr; Explanation</p>
+  <ul>
+    <li><strong>Heuristics</strong> — IP, length, suspicious chars, keyword masking</li>
+    <li><strong>Content</strong> — login forms, suspicious phrases, hidden elements</li>
+    <li><strong>SSL / Domain Age</strong> — cert validity, WHOIS freshness</li>
+    <li><strong>Threat Intel</strong> — OpenPhish, PhishTank, VT feeds</li>
+    <li><strong>Brand Recognition</strong> — FAISS + Bloom + Levenshtein for typosquats</li>
+  </ul>
+  <p>Every detector returns <em>evidence</em>, not just a number.</p>
+</section>
+
+<!-- Slide 5: Demo -->
+<section class="center">
+  <h2>Live Demo</h2>
+  <p style="font-size:1.1rem; margin-top:1rem;">Two scans. Two outcomes. Both explainable.</p>
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top:2rem;">
+    <div style="background:#fee2e2; padding:1.5rem; border-radius:8px;">
+      <strong style="color:#991b1b;">Phishing</strong><br/>
+      <code>chase-secure-login.tk</code><br/>
+      <span style="font-size:0.85rem;">Score: 95 &middot; Typosquat &middot; Free host</span>
+    </div>
+    <div style="background:#dcfce7; padding:1.5rem; border-radius:8px;">
+      <strong style="color:#166534;">Clean</strong><br/>
+      <code>wellsfargo.com/login</code><br/>
+      <span style="font-size:0.85rem;">Score: 0 &middot; Official domain override</span>
+    </div>
+  </div>
+</section>
+
+<!-- Slide 6: Dataset -->
+<section>
+  <h2>Dataset & Training</h2>
+  <p>Phase 0: grew brand inventory from <strong>10 to 110</strong> (top 100 banks added).</p>
+  <ul>
+    <li><strong>1,100 legitimate</strong> — Tranco top list, filtered to login-bearing domains</li>
+    <li><strong>1,100 phishing</strong> — historical positives, deduped by host</li>
+    <li><strong>2,200 total</strong> — stratified 70/15/15 split</li>
+    <li><strong>Host-disjoint</strong> — same domain never appears in train and test</li>
+  </ul>
+  <p>This single slide rebuts most "is it overfit?" questions.</p>
+</section>
+
+<!-- Slide 7: Headline Metrics -->
+<section>
+  <h2>Headline Metrics</h2>
+  <p style="text-align:center;"><img src="plots/metrics_bar.png" alt="Metrics bar chart"/></p>
+</section>
+
+<!-- Slide 8: Day-Zero Recall -->
+<section>
+  <h2>Day-Zero Recall</h2>
+  <p style="text-align:center;"><img src="plots/day_zero.png" alt="Day-zero recall chart"/></p>
+  <p>On URLs missing from <em>all</em> feeds, Brand Guard holds because brand-impersonation reasoning is content-driven, not feed-dependent.</p>
+</section>
+
+<!-- Slide 9: Bank-Impersonation Recall -->
+<section>
+  <h2>Bank-Impersonation Recall</h2>
+  <p style="text-align:center;"><img src="plots/bank_recall.png" alt="Bank recall chart"/></p>
+  <p>Phase 0 payoff: Brand Guard is the only system trained and indexed on 100 banks.</p>
+</section>
+
+<!-- Slide 10: Capability Matrix -->
+<section>
+  <h2>Beyond Accuracy: Capability Matrix</h2>
+  <p style="text-align:center;"><img src="plots/capability_heatmap.png" alt="Capability heatmap"/></p>
+  <p>Brand Guard is the only row with explainability, brand attribution, offline operation, and low latency.</p>
+</section>
+
+<!-- Slide 11: What ML Misses -->
+<section>
+  <h2>What ML Alone Misses</h2>
+  <blockquote>
+    <p><strong>HF BERT classifier:</strong> <code>chasse.com</code> &rarr; Clean (no concept of "Chase")</p>
+    <p><strong>Brand Guard:</strong> <code>chasse.com</code> &rarr; Phishing (typosquat, matched_brand=chase, 3ms)</p>
+  </blockquote>
+  <p>Concrete evidence beats a black-box probability.</p>
+</section>
+
+<!-- Slide 12: Limitations + Roadmap -->
+<section>
+  <h2>Limitations & Roadmap</h2>
+  <table style="width:100%; font-size:0.9rem; margin-top:1rem;">
+    <tr style="background:#e2e8f0;"><th>Limitation</th><th>Mitigation / Roadmap</th></tr>
+    <tr><td>2,200 rows is small for production</td><td>Continuous drift monitoring, active learning</td></tr>
+    <tr><td>Static HTML only</td><td>Headless browser rendering in pipeline v2</td></tr>
+    <tr><td>Brand-login scope only</td><td>Broader brand inventory, browser extension</td></tr>
+  </table>
+  <p style="margin-top:2rem; text-align:center; font-size:1.1rem;"><strong>Brand Guard: explainable, brand-aware phishing triage.</strong></p>
+</section>
+
+</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'slide',
+    width: 1280,
+    height: 720,
+  });
+</script>
+</body>
+</html>

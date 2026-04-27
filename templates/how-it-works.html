@@ -10,95 +10,151 @@
 </script>
 {% endblock %}
 {% block content %}
-    <header class="page-header page-header-wide">
-      <div class="page-header-copy">
-        <p class="eyebrow">Behind the check</p>
-        <h1>How Brand Guard scores a link</h1>
-        <p class="hint">When you paste a URL, the app fetches what it can from the live page, runs several independent checks, then blends those signals into one risk score and a simple verdict. This page is a plain-language map of that process.</p>
+<header class="page-header page-header-wide">
+  <div class="page-header-copy">
+    <p class="eyebrow">Behind the check</p>
+    <h1>How Brand Guard scores a link</h1>
+    <p class="hint">When you paste a URL, the app fetches what it can from the live page, runs several independent checks, then blends those signals into one risk score and a simple verdict. This page is a plain-language map of that process.</p>
+  </div>
+</header>
+
+<section class="how-intro card" aria-labelledby="how-intro-heading">
+  <h2 id="how-intro-heading">What you should expect</h2>
+  <p class="how-lead">Brand Guard is built for quick triage, not courtroom evidence. A high score means several automated signals agreed the page looks risky; a low score means they did not. Network errors, blocked pages, or missing content can limit what the tools see, which is why the interface also lists which checks ran and which could not.</p>
+</section>
+
+<section class="how-flow-section" aria-labelledby="how-flow-heading">
+  <div class="panel-subheader how-flow-header">
+    <h2 id="how-flow-heading">End-to-end flow</h2>
+    <span class="hint">From the URL you submit to the verdict on screen</span>
+  </div>
+  <ol class="how-flow" role="list">
+    <li class="how-step">
+      <span class="how-step-num" aria-hidden="true">1</span>
+      <div class="how-step-body">
+        <h3>Normalize the address</h3>
+        <p>The URL is cleaned and canonicalised so host names, schemes, and obvious typos are handled consistently before anything else runs.</p>
       </div>
-    </header>
-
-    <section class="how-intro card" aria-labelledby="how-intro-heading">
-      <h2 id="how-intro-heading">What you should expect</h2>
-      <p class="how-lead">Brand Guard is built for quick triage, not courtroom evidence. A high score means several automated signals agreed the page looks risky; a low score means they did not. Network errors, blocked pages, or missing content can limit what the tools see, which is why the interface also lists which checks ran and which could not.</p>
-    </section>
-
-    <section class="how-flow-section" aria-labelledby="how-flow-heading">
-      <div class="panel-subheader how-flow-header">
-        <h2 id="how-flow-heading">End-to-end flow</h2>
-        <span class="hint">From the URL you submit to the verdict on screen</span>
+    </li>
+    <li class="how-step">
+      <span class="how-step-num" aria-hidden="true">2</span>
+      <div class="how-step-body">
+        <h3>Build a page snapshot</h3>
+        <p>The server tries to load the page like a browser would and capture HTML, visible text, forms, hosting hints, and related metadata. That snapshot feeds most of the downstream checks.</p>
       </div>
-      <ol class="how-flow" role="list">
-        <li class="how-step">
-          <span class="how-step-num" aria-hidden="true">1</span>
-          <div class="how-step-body">
-            <h3>Normalize the address</h3>
-            <p>The URL is cleaned and canonicalised so host names, schemes, and obvious typos are handled consistently before anything else runs.</p>
-          </div>
-        </li>
-        <li class="how-step">
-          <span class="how-step-num" aria-hidden="true">2</span>
-          <div class="how-step-body">
-            <h3>Build a page snapshot</h3>
-            <p>The server tries to load the page like a browser would and capture HTML, visible text, forms, hosting hints, and related metadata. That snapshot feeds most of the downstream checks.</p>
-          </div>
-        </li>
-        <li class="how-step">
-          <span class="how-step-num" aria-hidden="true">3</span>
-          <div class="how-step-body">
-            <h3>Run signals in parallel</h3>
-            <p>Several subsystems read the snapshot or the hostname at the same time: a rules-based scorer, a FastText model trained on URL and page text, URL heuristics, TLS certificate checks, domain-age signals, optional threat-intel lookups, a structured feature model, and a brand-lookalike detector that works from the URL alone.</p>
-          </div>
-        </li>
-        <li class="how-step">
-          <span class="how-step-num" aria-hidden="true">4</span>
-          <div class="how-step-body">
-            <h3>Blend into one score</h3>
-            <p>Each family of checks produces a risk contribution where available. Those contributions are combined with fixed weights, then compared to a configured threshold to label the page as phishing-like or clean for this demo.</p>
-          </div>
-        </li>
-        <li class="how-step">
-          <span class="how-step-num" aria-hidden="true">5</span>
-          <div class="how-step-body">
-            <h3>Store a record (when enabled)</h3>
-            <p>Successful scans can be written to the local dataset store so researchers can audit examples and retrain models from the Data &amp; evaluation page.</p>
-          </div>
-        </li>
-      </ol>
-    </section>
+    </li>
+    <li class="how-step">
+      <span class="how-step-num" aria-hidden="true">3</span>
+      <div class="how-step-body">
+        <h3>Run signals in parallel</h3>
+        <p>Several subsystems read the snapshot or the hostname at the same time: a rules-based scorer, a FastText model trained on URL and page text, URL heuristics, TLS certificate checks, domain-age signals, optional threat-intel lookups, a structured feature model, and a brand-lookalike detector that works from the URL alone.</p>
+      </div>
+    </li>
+    <li class="how-step">
+      <span class="how-step-num" aria-hidden="true">4</span>
+      <div class="how-step-body">
+        <h3>Blend into one score</h3>
+        <p>Each family of checks produces a risk contribution where available. Those contributions are combined with fixed weights, then compared to a configured threshold to label the page as phishing-like or clean for this demo.</p>
+      </div>
+    </li>
+    <li class="how-step">
+      <span class="how-step-num" aria-hidden="true">5</span>
+      <div class="how-step-body">
+        <h3>Store a record (when enabled)</h3>
+        <p>Successful scans can be written to the local dataset store so researchers can audit examples and retrain models from the Data &amp; evaluation page.</p>
+      </div>
+    </li>
+  </ol>
+</section>
 
-    <section class="how-weights card" aria-labelledby="how-weights-heading">
-      <h2 id="how-weights-heading">How much each signal family weighs</h2>
-      <p class="hint how-weights-lead">Weights apply only to components that returned a score for that request. If a model is offline or a check fails, its slice is omitted and the remaining weights are renormalized so the verdict still reflects what actually ran.</p>
-      <dl class="how-weight-grid">
-        <div class="how-weight-row">
-          <dt>Rules baseline</dt>
-          <dd><span class="how-weight-pct">30%</span> Interpretable rules over the snapshot (for example login forms, suspicious phrases, host mismatches).</dd>
-        </div>
-        <div class="how-weight-row">
-          <dt>FastText</dt>
-          <dd><span class="how-weight-pct">30%</span> Text classifier over the captured page and URL context.</dd>
-        </div>
-        <div class="how-weight-row">
-          <dt>Legacy bundle</dt>
-          <dd><span class="how-weight-pct">15%</span> Combined heuristics, SSL, domain age, and threat intel when those probes succeed.</dd>
-        </div>
-        <div class="how-weight-row">
-          <dt>Brand recognition</dt>
-          <dd><span class="how-weight-pct">15%</span> Domain-only analysis for typosquats and impersonation patterns.</dd>
-        </div>
-        <div class="how-weight-row">
-          <dt>Structured ML</dt>
-          <dd><span class="how-weight-pct">10%</span> A second model over engineered features derived from the URL and legacy check outputs.</dd>
-        </div>
-      </dl>
-      <p class="how-footnote">If brand recognition reports a high-confidence impersonation scam, the composite score is not allowed to sit below that brand score—so obvious spoofs are not averaged away.</p>
-    </section>
+<section class="how-weights card" aria-labelledby="how-weights-heading">
+  <h2 id="how-weights-heading">How much each signal family weighs</h2>
+  <p class="hint how-weights-lead">Weights apply only to components that returned a score for that request. If a model is offline or a check fails, its slice is omitted and the remaining weights are renormalized so the verdict still reflects what actually ran.</p>
+  <dl class="how-weight-grid">
+    <div class="how-weight-row">
+      <dt>Rules baseline</dt>
+      <dd><span class="how-weight-pct">30%</span> Interpretable rules over the snapshot (for example login forms, suspicious phrases, host mismatches).</dd>
+    </div>
+    <div class="how-weight-row">
+      <dt>FastText</dt>
+      <dd><span class="how-weight-pct">30%</span> Text classifier over the captured page and URL context.</dd>
+    </div>
+    <div class="how-weight-row">
+      <dt>Legacy bundle</dt>
+      <dd><span class="how-weight-pct">15%</span> Combined heuristics, SSL, domain age, and threat intel when those probes succeed.</dd>
+    </div>
+    <div class="how-weight-row">
+      <dt>Brand recognition</dt>
+      <dd><span class="how-weight-pct">15%</span> Domain-only analysis for typosquats and impersonation patterns.</dd>
+    </div>
+    <div class="how-weight-row">
+      <dt>Structured ML</dt>
+      <dd><span class="how-weight-pct">10%</span> A second model over engineered features derived from the URL and legacy check outputs.</dd>
+    </div>
+  </dl>
+  <p class="how-footnote">If brand recognition reports a high-confidence impersonation scam, the composite score is not allowed to sit below that brand score—so obvious spoofs are not averaged away.</p>
+</section>
 
-    <section class="how-threshold card" aria-labelledby="how-threshold-heading">
-      <h2 id="how-threshold-heading">Verdict threshold</h2>
-      <p class="how-lead">The current demo threshold is <strong class="how-threshold-value">{{ "%.2f"|format(final_score_threshold) }}</strong> on the 0–100 style composite. At or above that value the UI shows a phishing-style verdict; below it, clean. Operators can change that cutoff in deployment configuration without retraining the models.</p>
-    </section>
+<section class="how-dataset card" aria-labelledby="how-dataset-heading">
+  <h2 id="how-dataset-heading">Dataset &amp; methodology (v3)</h2>
+  <p class="hint how-weights-lead">The current models are trained on a balanced, host-disjoint dataset built from fresh phishing feeds and legitimate bank domains.</p>
+  <div class="two-column-grid">
+    <div>
+      <h3>Phishing sources</h3>
+      <ul>
+        <li><strong>OpenPhish</strong> public feed (300 URLs)</li>
+        <li><strong>URLhaus</strong> parsed live feed (500 URLs)</li>
+        <li>Host-disjoint split: no domain appears in both train and test</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Legitimate sources</h3>
+      <ul>
+        <li><strong>Tranco</strong> top-list domains filtered to bank/brand/SaaS</li>
+        <li>Direct official domains for 100 global banks</li>
+        <li>Balanced 50/50 with phishing class</li>
+      </ul>
+    </div>
+  </div>
+  <div class="token-list" style="margin-top: 18px;">
+    <span class="token">1,600 total URLs</span>
+    <span class="token">800 phishing · 800 clean</span>
+    <span class="token">70/15/15 train/val/test split</span>
+    <span class="token">110 brands in inventory</span>
+  </div>
+</section>
+
+<section class="how-benchmark card" aria-labelledby="how-benchmark-heading">
+  <h2 id="how-benchmark-heading">Why Brand Guard wins</h2>
+  <p class="hint how-weights-lead">On a 240-URL held-out test set, Brand Guard is the only system with meaningful day-zero detection. See the <a href="/results">full benchmark</a> for details.</p>
+  <div class="how-benchmark-grid">
+    <article class="how-benchmark-item">
+      <h3>Heuristics</h3>
+      <p>Fast but content-blind. Catches obvious typosquats but misses brand-new pages that look legitimate.</p>
+      <span class="how-benchmark-tag">84% accuracy</span>
+    </article>
+    <article class="how-benchmark-item">
+      <h3>Netstar blocklist</h3>
+      <p>Industry-grade feed lookup. Collapses to random guessing when a URL has never been reported.</p>
+      <span class="how-benchmark-tag">65% accuracy</span>
+    </article>
+    <article class="how-benchmark-item">
+      <h3>HF BERT</h3>
+      <p>Generic ML classifier. Brand-blind by design—it has no concept of which domain should belong to which brand.</p>
+      <span class="how-benchmark-tag">50% accuracy</span>
+    </article>
+    <article class="how-benchmark-item how-benchmark-item-hero">
+      <h3>Brand Guard</h3>
+      <p>The only system combining brand recognition, heuristics, threat intel, and ML. Explicit brand reasoning catches spoofs before any feed lists them.</p>
+      <span class="how-benchmark-tag how-benchmark-tag-hero">98% accuracy</span>
+    </article>
+  </div>
+</section>
+
+<section class="how-threshold card" aria-labelledby="how-threshold-heading">
+  <h2 id="how-threshold-heading">Verdict threshold</h2>
+  <p class="how-lead">The current demo threshold is <strong class="how-threshold-value">{{ "%.2f"|format(final_score_threshold) }}</strong> on the 0–100 style composite. At or above that value the UI shows a phishing-style verdict; below it, clean. Operators can change that cutoff in deployment configuration without retraining the models.</p>
+</section>
 {% endblock %}
 
 {% block scripts %}
@@ -107,7 +163,7 @@
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var flow = document.querySelector(".how-flow-section");
   var nodes = document.querySelectorAll(
-    ".page-how .page-header, .page-how .how-intro, .page-how .how-step, .page-how .how-weights, .page-how .how-threshold"
+    ".page-how .page-header, .page-how .how-intro, .page-how .how-step, .page-how .how-weights, .page-how .how-threshold, .page-how .how-dataset, .page-how .how-benchmark"
   );
   function reveal(el) {
     el.classList.add("is-revealed");

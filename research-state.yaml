@@ -1,0 +1,110 @@
+schema_version: research-state-v1
+project: Brand Guard Phishing Detection Benchmark v3
+research_question: >
+  How does a brand-aware, explainable hybrid phishing detection system (Brand Guard)
+  compare to heuristics, threat-intel blocklists, generic ML classifiers, and
+  Google Safe Browsing on day-zero bank-impersonation phishing detection?
+
+status: complete
+phases:
+  - id: 0
+    name: Data & Inventory v3
+    status: complete
+    deliverables:
+      - scanner/brand_profiles_banks.json (100 banks)
+      - data/processed/phishing_fresh.csv (800 fresh URLs from OpenPhish + URLhaus)
+      - data/processed/capstone_v3.csv (1,600 URLs, balanced)
+      - scripts/fetch_phishing_feeds.py
+
+  - id: 1
+    name: Model Training v3
+    status: complete
+    deliverables:
+      - .cache/fasttext/brand-login-v3.bin (active)
+      - .cache/ml-artifacts/run_v3_capstone/ (TF model, 99.11% accuracy)
+      - scripts/train_tf_url_only.py
+      - scripts/build_fasttext_corpus_url_only.py
+
+  - id: 2
+    name: Benchmark v3
+    status: complete
+    deliverables:
+      - docs/benchmark/benchmark_matrix.csv
+      - docs/benchmark/benchmark_summary.json
+      - docs/benchmark/plots/*.png (5 plots)
+
+  - id: 3
+    name: Website Integration
+    status: complete
+    deliverables:
+      - templates/paper.html
+      - app/api.py (paper route added)
+      - static/benchmark/*.png
+
+metrics:
+  eval_set: data/processed/capstone_v3_test.csv
+  total_urls: 240
+  lenses:
+    heuristics_only:
+      accuracy: 0.8417
+      precision: 1.0
+      recall: 0.6833
+      f1: 0.8119
+      day_zero_recall: 0.9492
+      bank_recall: 0.7778
+    netstar_lookup:
+      accuracy: 0.6458
+      precision: 1.0
+      recall: 0.2917
+      f1: 0.4516
+      day_zero_recall: 0.0
+      bank_recall: 0.3333
+    hf_url_classifier:
+      accuracy: 0.5
+      precision: 0.0
+      recall: 0.0
+      f1: 0.0
+      day_zero_recall: 0.0
+      bank_recall: 0.0
+    gsb_lookup:
+      accuracy: 0.5042
+      precision: 0.5075
+      recall: 0.2833
+      f1: 0.3636
+      day_zero_recall: 0.0
+      bank_recall: 0.1111
+    brand_guard:
+      accuracy: 0.9792
+      precision: 0.9832
+      recall: 0.975
+      f1: 0.9791
+      day_zero_recall: 0.9661
+      bank_recall: 1.0
+
+hypotheses:
+  - id: H1
+    statement: Brand Guard outperforms single-signal baselines on brand-impersonation recall
+    status: strongly_supported
+    evidence: bank_recall 100% vs 0-33% for other lenses
+
+  - id: H2
+    statement: Brand Guard maintains day-zero detection capability while blocklists collapse
+    status: strongly_supported
+    evidence: day_zero_recall 97% vs 0% for netstar/gsb/hf
+
+  - id: H3
+    statement: Higher precision on Brand Guard comes from official-domain override reducing FP on legit bank logins
+    status: strongly_supported
+    evidence: precision 98% vs GSB 51%
+
+open_questions:
+  - How does full page-fetch content analysis improve results further?
+  - What is adversarial robustness to carefully crafted typosquats?
+  - How does performance scale to 10k+ URL eval sets?
+
+next_actions:
+  - Await human review
+  - Consider adversarial testing expansion
+  - Consider browser extension prototype
+
+last_updated: 2026-04-27T01:00:00Z

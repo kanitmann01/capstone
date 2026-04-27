@@ -4,11 +4,14 @@
 {% set report = latest_evaluation_report or {} %}
 {% set summary = report.summary or {} %}
 {% set matrix = report.confusion_matrix or {} %}
-{% set v1report = training_report_v1 or {} %}
-{% set v1fi = v1report.feature_importance or [] %}
-{% set v1pd = v1report.probability_distribution or [] %}
-{% set v1_test_metrics = (v1report.get('splits') or {}).get('test') or {} %}
-{% set v1_roc_auc = v1_test_metrics.get('roc_auc', 1.0) %}
+{% set latest_train = latest_training_report or {} %}
+{% set latest_summary = latest_train.summary or {} %}
+{% set latest_dataset = latest_train.dataset or {} %}
+{% set latest_matrix = latest_train.confusion_matrix or {} %}
+{% set kfold = kfold_validation_report or {} %}
+{% set kfold_summary = kfold.summary or {} %}
+{% set kfold_folds = kfold.fold_metrics or [] %}
+{% set kfold_matrix = kfold.confusion_matrix or {} %}
 {% block head_extra %}
 <script>
 (function () {
@@ -23,7 +26,7 @@
   <div class="page-header-copy">
     <p class="eyebrow">Model metrics</p>
     <h1>How well the detectors perform</h1>
-    <p class="hint">Charts compare the URL text model, hand-tuned rules, and neural-network runs-including ROC curves (how well fake links are separated from real ones) and, when available, which URL features mattered most.</p>
+    <p class="hint">Charts compare the URL text model, hand-tuned rules, the latest retrain, and the 5-fold validation run on the balanced dataset.</p>
   </div>
 </header>
 
@@ -54,48 +57,120 @@
   </div>
 </section>
 
+{% if latest_summary %}
 <section class="card">
   <div class="panel-subheader">
-    <h2>Side-by-side accuracy</h2>
-    <span class="hint">Accuracy, AUC, precision, and recall on the held-out test set-higher is better for each.</span>
+    <div>
+      <h2>Latest retrain (v3)</h2>
+      <span class="hint">TensorFlow dense classifier trained on capstone_v3 (1,600 URLs, 800 phishing + 800 legitimate). Features extracted from URL structure, heuristics, and brand recognition without page snapshot fetching.</span>
+    </div>
+    <span class="token">{{ latest_dataset.usable_rows or latest_summary.usable_rows or 0 }} rows · v3 dataset</span>
   </div>
-  <div class="chart-card">
-    <p class="chart-title">All models - test-set metrics</p>
-    <p class="chart-subtitle">Hand-tuned rules (approx.) · URL text model · Neural net v1 · Neural net v2</p>
-    <canvas id="chart-model-compare" class="tall"></canvas>
+  <div class="metrics-row">
+    <div class="metric-pill">
+      <span class="metric-label">Accuracy</span>
+      <strong style="color: var(--chart-series-1, #2a6b6f);">{{ "%.4f"|format(latest_summary.accuracy) if latest_summary.accuracy is defined else "-" }}</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">Precision</span>
+      <strong style="color: var(--chart-series-1, #2a6b6f);">{{ "%.4f"|format(latest_summary.precision) if latest_summary.precision is defined else "-" }}</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">Recall</span>
+      <strong style="color: var(--chart-series-1, #2a6b6f);">{{ "%.4f"|format(latest_summary.recall) if latest_summary.recall is defined else "-" }}</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">F1</span>
+      <strong style="color: var(--chart-series-1, #2a6b6f);">{{ "%.4f"|format(latest_summary.f1) if latest_summary.f1 is defined else "-" }}</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">ROC-AUC</span>
+      <strong>{{ "%.4f"|format(latest_summary.roc_auc) if latest_summary.roc_auc is defined else "-" }}</strong>
+    </div>
+  </div>
+  <div class="summary-grid">
+    <article class="signal-card">
+      <span class="metric-label">Model version</span>
+      <strong class="table-url">{{ latest_summary.model_version or 'n/a' }}</strong>
+    </article>
+    <article class="signal-card">
+      <span class="metric-label">Train / validation / test rows</span>
+      <strong>{{ latest_summary.train_rows or 0 }} / {{ latest_summary.validation_rows or 0 }} / {{ latest_summary.test_rows or 0 }}</strong>
+    </article>
+    <article class="signal-card">
+      <span class="metric-label">Class balance</span>
+      <strong>{{ latest_summary.positive_rows or 0 }} phishing · {{ latest_summary.negative_rows or 0 }} clean</strong>
+    </article>
+    <article class="signal-card">
+      <span class="metric-label">Confusion matrix</span>
+      <strong>TP {{ latest_matrix.tp or 0 }} · FP {{ latest_matrix.fp or 0 }} · FN {{ latest_matrix.fn or 0 }} · TN {{ latest_matrix.tn or 0 }}</strong>
+    </article>
   </div>
 </section>
+{% endif %}
 
+{% if kfold_summary %}
 <section class="card">
   <div class="panel-subheader">
-    <h2>ROC curves (discrimination)</h2>
-    <span class="hint">Each line shows how well the model trades off catching fake links vs. flagging real ones. Curves closer to the top-left corner are better.</span>
+    <div>
+      <h2>5-fold validation</h2>
+      <span class="hint">Five independent train/test folds from <code>NewUrl_features_balanced.csv</code>; values show mean ± standard deviation.</span>
+    </div>
+    <span class="token">{{ kfold.rows or 0 }} rows · {{ kfold.folds or 5 }} folds</span>
   </div>
-  <div class="chart-card">
-    <p class="chart-title">Neural net v1 vs neural net v2</p>
-    <p class="chart-subtitle">Higher “AUC” means better overall separation between fake and real links.</p>
-    <canvas id="chart-roc" class="tall"></canvas>
+  <div class="metrics-row">
+    <div class="metric-pill">
+      <span class="metric-label">Accuracy</span>
+      <strong>{{ "%.4f"|format(kfold_summary.accuracy.mean) }} ± {{ "%.4f"|format(kfold_summary.accuracy.std) }}</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">Precision</span>
+      <strong>{{ "%.4f"|format(kfold_summary.precision.mean) }} ± {{ "%.4f"|format(kfold_summary.precision.std) }}</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">Recall</span>
+      <strong>{{ "%.4f"|format(kfold_summary.recall.mean) }} ± {{ "%.4f"|format(kfold_summary.recall.std) }}</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">F1</span>
+      <strong>{{ "%.4f"|format(kfold_summary.f1.mean) }} ± {{ "%.4f"|format(kfold_summary.f1.std) }}</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">ROC-AUC</span>
+      <strong>{{ "%.4f"|format(kfold_summary.roc_auc.mean) }} ± {{ "%.4f"|format(kfold_summary.roc_auc.std) }}</strong>
+    </div>
   </div>
-</section>
-
-{% if v1fi %}
-<section class="card">
-  <div class="panel-subheader">
-    <h2>Which inputs mattered most</h2>
-    <span class="hint">Neural net v1: strongest URL-based signals by how much accuracy dropped when each feature was shuffled (permutation importance).</span>
-  </div>
-  <div class="chart-card">
-    <p class="chart-title">Top 15 features</p>
-    <p class="chart-subtitle">Larger bars = the model relied on that signal more on the test set</p>
-    <canvas id="chart-feature-importance" class="tall"></canvas>
+  <div class="charts-grid-2">
+    <div class="chart-card">
+      <p class="chart-title">Fold-by-fold metrics</p>
+      <p class="chart-subtitle">Each fold retrains a new TensorFlow model on 80% of the rows and tests on the held-out 20%.</p>
+      <canvas id="chart-kfold-metrics" class="short"></canvas>
+    </div>
+    <div class="chart-card">
+      <p class="chart-title">Aggregate confusion matrix</p>
+      <p class="chart-subtitle">Summed across all five held-out folds.</p>
+      <canvas id="chart-kfold-matrix" class="short"></canvas>
+    </div>
   </div>
 </section>
 {% endif %}
 
 <section class="card">
   <div class="panel-subheader">
-    <h2>Latest batch evaluation</h2>
-    <span class="hint">Numbers from the most recent full evaluation run (started from Data &amp; evaluation).</span>
+    <h2>Side-by-side accuracy</h2>
+    <span class="hint">Accuracy, AUC, precision, and recall. The 5-fold columns use mean held-out performance.</span>
+  </div>
+  <div class="chart-card">
+    <p class="chart-title">All models - test-set metrics</p>
+    <p class="chart-subtitle">Hand-tuned rules (approx.) · URL text model · Latest retrain · 5-fold mean</p>
+    <canvas id="chart-model-compare" class="tall"></canvas>
+  </div>
+</section>
+
+<section class="card">
+  <div class="panel-subheader">
+    <h2>Legacy batch evaluation</h2>
+    <span class="hint">Numbers from the original capstone_v2 evaluation. See "Five-lens benchmark" above for the latest v3 results.</span>
   </div>
 
   {% if summary %}
@@ -177,6 +252,62 @@
   </div>
 </section>
 {% endif %}
+
+<section class="card">
+  <div class="panel-subheader">
+    <div>
+      <h2>Five-lens benchmark</h2>
+      <span class="hint">Comparison of Heuristics, Netstar, HF BERT, GSB, and Brand Guard on the held-out <code>capstone_v3_test</code> set with fresh phishing feeds.</span>
+    </div>
+    <span class="token">240 URLs · 5 lenses · v3 dataset</span>
+  </div>
+
+  <div class="metrics-row">
+    <div class="metric-pill">
+      <span class="metric-label">Heuristics F1</span>
+      <strong id="bench-heur-f1">-</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">Netstar F1</span>
+      <strong id="bench-net-f1">-</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">HF BERT F1</span>
+      <strong id="bench-hf-f1">-</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">GSB F1</span>
+      <strong id="bench-gsb-f1">-</strong>
+    </div>
+    <div class="metric-pill">
+      <span class="metric-label">Brand Guard F1</span>
+      <strong id="bench-bg-f1">-</strong>
+    </div>
+  </div>
+
+  <div class="charts-grid-2">
+    <div class="chart-card">
+      <p class="chart-title">Metrics by lens</p>
+      <p class="chart-subtitle">Accuracy, precision, recall, and F1 across all five detection lenses.</p>
+      <canvas id="chart-benchmark-metrics" class="tall"></canvas>
+    </div>
+    <div class="chart-card">
+      <p class="chart-title">Day-zero recall</p>
+      <p class="chart-subtitle">Detection rate on URLs not yet in any threat feed at test time.</p>
+      <canvas id="chart-benchmark-dayzero" class="short"></canvas>
+    </div>
+    <div class="chart-card">
+      <p class="chart-title">Bank-impersonation recall</p>
+      <p class="chart-subtitle">Detection rate on phishing pages targeting the 100-bank inventory.</p>
+      <canvas id="chart-benchmark-bank" class="short"></canvas>
+    </div>
+    <div class="chart-card">
+      <p class="chart-title">Capability radar</p>
+      <p class="chart-subtitle">Which lenses support explainability, brand attribution, and offline operation.</p>
+      <canvas id="chart-benchmark-radar" class="tall"></canvas>
+    </div>
+  </div>
+</section>
 {% endblock %}
 
 {% block scripts %}
@@ -274,15 +405,27 @@
 
   const modelCompare = document.getElementById("chart-model-compare");
   if (modelCompare) {
+    const latestMetrics = {
+      accuracy: {{ latest_summary.accuracy | float if latest_summary.accuracy is defined else 0 }},
+      auc: {{ latest_summary.roc_auc | float if latest_summary.roc_auc is defined else 0 }},
+      precision: {{ latest_summary.precision | float if latest_summary.precision is defined else 0 }},
+      recall: {{ latest_summary.recall | float if latest_summary.recall is defined else 0 }},
+    };
+    const kfoldMean = {
+      accuracy: {{ kfold_summary.accuracy.mean | float if kfold_summary.accuracy is defined else 0 }},
+      auc: {{ kfold_summary.roc_auc.mean | float if kfold_summary.roc_auc is defined else 0 }},
+      precision: {{ kfold_summary.precision.mean | float if kfold_summary.precision is defined else 0 }},
+      recall: {{ kfold_summary.recall.mean | float if kfold_summary.recall is defined else 0 }},
+    };
     new Chart(modelCompare, {
       type: "bar",
       data: {
-        labels: ["Rules (approx.)", "URL text model", "Neural net v1", "Neural net v2"],
+        labels: ["Rules (approx.)", "URL text model", "Latest retrain", "5-fold mean"],
         datasets: [
-          { label: "Accuracy",  data: [0.720, 0.986, 1.0, 0.9923], backgroundColor: C_BLUE, borderRadius: 6, borderSkipped: false },
-          { label: "AUC",       data: [0.740, 0.993, 1.0, 1.0], backgroundColor: C_SKY, borderRadius: 6, borderSkipped: false },
-          { label: "Precision", data: [0.750, 0.991, 1.0, 0.9907], backgroundColor: C_PURPLE, borderRadius: 6, borderSkipped: false },
-          { label: "Recall",    data: [0.680, 0.981, 1.0, 1.0], backgroundColor: "rgba(220,38,38,0.82)", borderRadius: 6, borderSkipped: false },
+          { label: "Accuracy",  data: [0.720, 0.986, latestMetrics.accuracy, kfoldMean.accuracy], backgroundColor: C_BLUE, borderRadius: 6, borderSkipped: false },
+          { label: "AUC",       data: [0.740, 0.993, latestMetrics.auc, kfoldMean.auc], backgroundColor: C_SKY, borderRadius: 6, borderSkipped: false },
+          { label: "Precision", data: [0.750, 0.991, latestMetrics.precision, kfoldMean.precision], backgroundColor: C_PURPLE, borderRadius: 6, borderSkipped: false },
+          { label: "Recall",    data: [0.680, 0.981, latestMetrics.recall, kfoldMean.recall], backgroundColor: "rgba(220,38,38,0.82)", borderRadius: 6, borderSkipped: false },
         ],
       },
       options: {
@@ -296,133 +439,54 @@
     });
   }
 
-  const rocCanvas = document.getElementById("chart-roc");
-  if (rocCanvas && typeof Chart !== "undefined") {
-    try {
-      const probBins = {{ v1pd | tojson | safe }};
-      const v1FPR = [0];
-      const v1TPR = [0];
-      if (Array.isArray(probBins) && probBins.length) {
-        const totPhish = probBins.reduce((s, b) => s + (b.phishing || 0), 0) || 1;
-        const totLegit = probBins.reduce((s, b) => s + (b.legitimate || 0), 0) || 1;
-        for (let t = 0; t < probBins.length; t++) {
-          const tp = probBins.slice(t).reduce((s, b) => s + (b.phishing || 0), 0);
-          const fp = probBins.slice(t).reduce((s, b) => s + (b.legitimate || 0), 0);
-          v1FPR.push(fp / totLegit);
-          v1TPR.push(tp / totPhish);
-        }
-        v1FPR.push(1);
-        v1TPR.push(1);
-        const pairs = v1FPR.map((f, i) => [f, v1TPR[i]]).sort((a, b) => a[0] - b[0]);
-        v1FPR.splice(0, v1FPR.length, ...pairs.map((p) => p[0]));
-        v1TPR.splice(0, v1TPR.length, ...pairs.map((p) => p[1]));
-      }
-      let v1Data = v1FPR.map((x, i) => ({ x: Number(x), y: Number(v1TPR[i] ?? 0) }));
-      if (v1Data.length < 2) {
-        /* No probability bins: show diagonal placeholder (curve shape comes from v2). */
-        v1Data = [{ x: 0, y: 0 }, { x: 1, y: 1 }];
-      }
-
-      const rocV2 = {{ roc_v2 | tojson | safe }};
-      const rawFpr = Array.isArray(rocV2.fpr) ? rocV2.fpr.map(Number) : [];
-      const rawTpr = Array.isArray(rocV2.tpr) ? rocV2.tpr.map(Number) : [];
-      let v2Data = rawFpr.map((x, i) => ({ x, y: rawTpr[i] ?? 0 }));
-      v2Data.sort((a, b) => a.x - b.x || a.y - b.y);
-      if (v2Data.length < 2) {
-        v2Data = [
-          { x: 0, y: 0 },
-          { x: 1, y: 1 },
-        ];
-      }
-      const v2AUC = Number(rocV2.auc);
-      const v2AucLabel = Number.isFinite(v2AUC) ? v2AUC.toFixed(3) : "0.000";
-
-      new Chart(rocCanvas, {
-        type: "line",
-        data: {
-          datasets: [
-            {
-              label: "Neural net v1 (AUC={{ '%.3f'|format(v1_roc_auc|float) }})",
-              data: v1Data,
-              borderColor: C_BLUE,
-              backgroundColor: "transparent",
-              borderWidth: 2.5,
-              pointRadius: 0,
-              fill: false,
-              tension: 0.15,
-              spanGaps: true,
-            },
-            {
-              label: "Neural net v2 (AUC=" + v2AucLabel + ")",
-              data: v2Data,
-              borderColor: C_SKY,
-              backgroundColor: "transparent",
-              borderWidth: 2.5,
-              pointRadius: 0,
-              fill: false,
-              tension: 0.15,
-              spanGaps: true,
-            },
-            {
-              label: "Random",
-              data: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
-              borderColor: C.muted,
-              borderWidth: 1.5,
-              borderDash: [5, 4],
-              pointRadius: 0,
-              fill: false,
-            },
-          ],
-        },
-        options: {
-          ...baseOpts,
-          animation: lineAnim,
-          parsing: false,
-          scales: {
-            x: {
-              type: "linear",
-              min: 0,
-              max: 1,
-              title: { display: true, text: "False Positive Rate", color: C_MUTED, font: { weight: "600" } },
-              ticks: { color: C_MUTED },
-              grid: { color: C_GRID },
-            },
-            y: {
-              min: 0,
-              max: 1,
-              title: { display: true, text: "True Positive Rate", color: C_MUTED, font: { weight: "600" } },
-              ticks: { color: C_MUTED },
-              grid: { color: C_GRID },
-            },
-          },
-        },
-      });
-    } catch (err) {
-      console.error("ROC chart failed:", err);
-    }
-  }
-
-  const fiCanvas = document.getElementById("chart-feature-importance");
-  if (fiCanvas) {
-    const fi   = {{ v1fi | tojson }};
-    const top  = fi.slice(0, 15).reverse();
-    const vals = top.map(f => f.importance);
-    const maxV = Math.max(...vals, 1e-9);
-    new Chart(fiCanvas, {
-      type: "bar",
+  const kfoldMetrics = document.getElementById("chart-kfold-metrics");
+  if (kfoldMetrics) {
+    const folds = {{ kfold_folds | tojson }};
+    new Chart(kfoldMetrics, {
+      type: "line",
       data: {
-        labels: top.map(f => f.feature),
-        datasets: [{ label: "AUC drop", data: vals, backgroundColor: vals.map(v => v === maxV ? C.s4 : C.s1), borderRadius: 5, borderSkipped: false }],
+        labels: folds.map((fold) => "Fold " + fold.fold),
+        datasets: [
+          { label: "Accuracy", data: folds.map((fold) => fold.accuracy), borderColor: C.s1, backgroundColor: C.fillPrimary, borderWidth: 2.5, tension: 0.3, pointRadius: 3 },
+          { label: "Precision", data: folds.map((fold) => fold.precision), borderColor: C.s3, borderWidth: 2.5, tension: 0.3, pointRadius: 3 },
+          { label: "Recall", data: folds.map((fold) => fold.recall), borderColor: C.s4, borderWidth: 2.5, tension: 0.3, pointRadius: 3 },
+          { label: "ROC-AUC", data: folds.map((fold) => fold.roc_auc), borderColor: C.s2, borderWidth: 2.5, tension: 0.3, pointRadius: 3 },
+        ],
       },
       options: {
         ...baseOpts,
-        animation: barAnim,
-        indexAxis: "y",
-        plugins: { ...baseOpts.plugins, legend: { display: false } },
+        animation: lineAnim,
+        interaction: { mode: "index", intersect: false },
         scales: {
-          x: { ticks: { color: C_MUTED, callback: v => v.toFixed(3) }, grid: { color: C_GRID }, title: { display: true, text: "Permutation Importance (AUC drop)", color: C_MUTED, font: { weight: "600" } } },
-          y: { ticks: { color: C_MUTED, font: { size: 11 } }, grid: { display: false } },
+          x: { ticks: { color: C_MUTED }, grid: { display: false } },
+          y: { min: 0.9, max: 1.0, ticks: { color: C_MUTED, callback: v => v.toFixed(2) }, grid: { color: C_GRID } },
         },
+      },
+    });
+  }
+
+  const kfoldMatrix = document.getElementById("chart-kfold-matrix");
+  if (kfoldMatrix) {
+    const tp = {{ kfold_matrix.tp | int if kfold_matrix.tp else 0 }};
+    const tn = {{ kfold_matrix.tn | int if kfold_matrix.tn else 0 }};
+    const fp = {{ kfold_matrix.fp | int if kfold_matrix.fp else 0 }};
+    const fn = {{ kfold_matrix.fn | int if kfold_matrix.fn else 0 }};
+    new Chart(kfoldMatrix, {
+      type: "doughnut",
+      data: {
+        labels: ["True Positives", "True Negatives", "False Positives", "False Negatives"],
+        datasets: [{
+          data: [tp, tn, fp, fn],
+          backgroundColor: [C.doughnutTp, C.doughnutTn, C.doughnutFp, C.doughnutFn],
+          borderWidth: 1,
+          hoverOffset: 6,
+        }],
+      },
+      options: {
+        ...baseOpts,
+        animation: doughnutAnim,
+        cutout: "62%",
+        plugins: { ...baseOpts.plugins, legend: { ...baseOpts.plugins.legend, position: "right" } },
       },
     });
   }
@@ -479,6 +543,24 @@
     });
   }
 
+  (function loadBenchmark() {
+    fetch("/static/benchmark/benchmark_summary.json")
+      .then(r => r.json())
+      .then(data => {
+        const lenses = data.lenses || {};
+        const set = (id, val) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = val;
+        };
+        set("bench-heur-f1", (lenses.heuristics_only?.f1 ?? "-").toString());
+        set("bench-net-f1", (lenses.netstar_lookup?.f1 ?? "-").toString());
+        set("bench-hf-f1", (lenses.hf_url_classifier?.f1 ?? "-").toString());
+        set("bench-gsb-f1", (lenses.gsb_lookup?.f1 ?? "-").toString());
+        set("bench-bg-f1", (lenses.brand_guard?.f1 ?? "-").toString());
+      })
+      .catch(() => {});
+  })();
+
   const threshCanvas = document.getElementById("chart-threshold");
   if (threshCanvas) {
     const sweep = {{ (report.threshold_sweep or []) | tojson }};
@@ -505,5 +587,146 @@
       });
     }
   }
+
+  (function loadBenchmarkCharts() {
+    fetch("/static/benchmark/benchmark_summary.json")
+      .then(r => r.json())
+      .then(data => {
+        const lenses = data.lenses || {};
+        const set = (id, val) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = val;
+        };
+        set("bench-heur-f1", (lenses.heuristics_only?.f1 ?? "-").toString());
+        set("bench-net-f1", (lenses.netstar_lookup?.f1 ?? "-").toString());
+        set("bench-hf-f1", (lenses.hf_url_classifier?.f1 ?? "-").toString());
+        set("bench-gsb-f1", (lenses.gsb_lookup?.f1 ?? "-").toString());
+        set("bench-bg-f1", (lenses.brand_guard?.f1 ?? "-").toString());
+
+        const lensNames = ["Heuristics", "Netstar", "HF BERT", "GSB", "Brand Guard"];
+        const lensKeys = ["heuristics_only", "netstar_lookup", "hf_url_classifier", "gsb_lookup", "brand_guard"];
+
+        // Metrics comparison chart
+        const metricsCanvas = document.getElementById("chart-benchmark-metrics");
+        if (metricsCanvas) {
+          new Chart(metricsCanvas, {
+            type: "bar",
+            data: {
+              labels: lensNames,
+              datasets: [
+                { label: "Accuracy", data: lensKeys.map(k => lenses[k]?.accuracy ?? 0), backgroundColor: "rgba(42, 107, 111, 0.85)", borderRadius: 6, borderSkipped: false },
+                { label: "Precision", data: lensKeys.map(k => lenses[k]?.precision ?? 0), backgroundColor: "rgba(14, 116, 144, 0.85)", borderRadius: 6, borderSkipped: false },
+                { label: "Recall", data: lensKeys.map(k => lenses[k]?.recall ?? 0), backgroundColor: "rgba(140, 47, 47, 0.85)", borderRadius: 6, borderSkipped: false },
+                { label: "F1", data: lensKeys.map(k => lenses[k]?.f1 ?? 0), backgroundColor: "rgba(109, 40, 217, 0.85)", borderRadius: 6, borderSkipped: false },
+              ],
+            },
+            options: {
+              ...baseOpts,
+              animation: barAnim,
+              scales: {
+                x: { ticks: { color: C_MUTED }, grid: { display: false } },
+                y: { min: 0, max: 1.05, ticks: { color: C_MUTED, callback: v => v.toFixed(2) }, grid: { color: C_GRID } },
+              },
+            },
+          });
+        }
+
+        // Day-zero recall chart
+        const dayZeroCanvas = document.getElementById("chart-benchmark-dayzero");
+        if (dayZeroCanvas) {
+          new Chart(dayZeroCanvas, {
+            type: "bar",
+            data: {
+              labels: lensNames,
+              datasets: [{
+                label: "Day-zero recall",
+                data: lensKeys.map(k => lenses[k]?.day_zero_recall ?? 0),
+                backgroundColor: lensKeys.map((k, i) => i === 4 ? "rgba(42, 107, 111, 0.9)" : "rgba(107, 114, 128, 0.5)"),
+                borderRadius: 6,
+                borderSkipped: false,
+              }],
+            },
+            options: {
+              ...baseOpts,
+              animation: barAnim,
+              plugins: { ...baseOpts.plugins, legend: { display: false } },
+              scales: {
+                x: { ticks: { color: C_MUTED }, grid: { display: false } },
+                y: { min: 0, max: 1.05, ticks: { color: C_MUTED, callback: v => (v * 100).toFixed(0) + "%" }, grid: { color: C_GRID } },
+              },
+            },
+          });
+        }
+
+        // Bank recall chart
+        const bankCanvas = document.getElementById("chart-benchmark-bank");
+        if (bankCanvas) {
+          new Chart(bankCanvas, {
+            type: "bar",
+            data: {
+              labels: lensNames,
+              datasets: [{
+                label: "Bank recall",
+                data: lensKeys.map(k => lenses[k]?.bank_recall ?? 0),
+                backgroundColor: lensKeys.map((k, i) => i === 4 ? "rgba(42, 107, 111, 0.9)" : "rgba(107, 114, 128, 0.5)"),
+                borderRadius: 6,
+                borderSkipped: false,
+              }],
+            },
+            options: {
+              ...baseOpts,
+              animation: barAnim,
+              plugins: { ...baseOpts.plugins, legend: { display: false } },
+              scales: {
+                x: { ticks: { color: C_MUTED }, grid: { display: false } },
+                y: { min: 0, max: 1.05, ticks: { color: C_MUTED, callback: v => (v * 100).toFixed(0) + "%" }, grid: { color: C_GRID } },
+              },
+            },
+          });
+        }
+
+        // Capability radar chart
+        const radarCanvas = document.getElementById("chart-benchmark-radar");
+        if (radarCanvas) {
+          new Chart(radarCanvas, {
+            type: "radar",
+            data: {
+              labels: ["Explainable", "Brand Attribution", "Offline Capable"],
+              datasets: lensKeys.map((k, i) => ({
+                label: lensNames[i],
+                data: [
+                  lenses[k]?.explainable ?? 0,
+                  lenses[k]?.brand_attribution ?? 0,
+                  lenses[k]?.offline_capable ?? 0,
+                ],
+                borderColor: i === 4 ? "rgba(42, 107, 111, 0.9)" : "rgba(107, 114, 128, 0.4)",
+                backgroundColor: i === 4 ? "rgba(42, 107, 111, 0.2)" : "rgba(107, 114, 128, 0.05)",
+                borderWidth: i === 4 ? 3 : 1.5,
+                pointRadius: i === 4 ? 4 : 2,
+                pointBackgroundColor: i === 4 ? "rgba(42, 107, 111, 0.9)" : "rgba(107, 114, 128, 0.4)",
+              })),
+            },
+            options: {
+              ...baseOpts,
+              animation: { duration: 1200, easing: "easeOutQuart" },
+              scales: {
+                r: {
+                  min: 0,
+                  max: 1.2,
+                  ticks: { display: false, stepSize: 1 },
+                  grid: { color: C_GRID },
+                  pointLabels: { color: C_TEXT, font: { weight: "600", size: 13 } },
+                },
+              },
+              plugins: {
+                ...baseOpts.plugins,
+                legend: { ...baseOpts.plugins.legend, position: "bottom" },
+              },
+            },
+          });
+        }
+      })
+      .catch(() => {});
+  })();
 </script>
 {% endblock %}
