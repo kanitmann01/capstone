@@ -1,5 +1,5 @@
 from scanner.feed_ingest import ThreatFeedCache
-from scanner.service import ScanService
+from app.service import AppService
 from scanner.settings import ScannerSettings
 
 
@@ -14,7 +14,7 @@ def test_service_weighted_score_excludes_unknown(tmp_path):
         weights_domain_age=0.0,
         weights_threat_intel=0.0,
     )
-    service = ScanService(settings, ThreatFeedCache(settings))
+    service = AppService(settings=settings, feed_cache=ThreatFeedCache(settings))
     details = {
         "heuristics": {"status": "ok", "risk_score": 100},
         "content": {"status": "unknown", "risk_score": 0},
@@ -40,29 +40,46 @@ def test_scan_combined_with_progress_emits_check_events(tmp_path, monkeypatch):
         weights_threat_intel=0.0,
         weights_ml=0.0,
     )
-    service = ScanService(settings, ThreatFeedCache(settings))
+    service = AppService(settings=settings, feed_cache=ThreatFeedCache(settings))
     events = []
 
-    def fake_run_combined_checks(target, progress_callback=None):
-        del target
-        if progress_callback:
-            progress_callback({"type": "check_started", "check": "heuristics"})
-            progress_callback(
-                {"type": "check_completed", "check": "heuristics", "status": "ok", "risk_score": 20}
-            )
-            progress_callback({"type": "check_started", "check": "content"})
-            progress_callback(
-                {"type": "check_completed", "check": "content", "status": "unknown", "risk_score": 0}
-            )
-        return {
-            "heuristics": {"status": "ok", "risk_score": 20},
-            "content": {"status": "unknown", "risk_score": 0},
-            "ssl": {"status": "unknown", "risk_score": 0},
-            "domain_age": {"status": "unknown", "risk_score": 0},
-            "threat_intel": {"status": "unknown", "risk_score": 0},
-        }
+    # Mock all scanner classes to avoid network calls
+    class MockScanner:
+        def __init__(self, *args, **kwargs):
+            pass
+        def run_checks(self):
+            return {"status": "ok", "risk_score": 20}
 
-    monkeypatch.setattr(service, "_run_combined_checks", fake_run_combined_checks)
+    # Mock ContentScanner separately (different signature)
+    class MockContentScanner:
+        def __init__(self, *args, **kwargs):
+            pass
+        def run_checks(self):
+            return {
+                "status": "ok", "risk_score": 0,
+                "detected_brand": "", "host_provider": "", "brand_mismatch": False,
+                "brand_path_match": False, "login_form_present": False,
+                "password_field_count": 0, "form_action_mismatch": False,
+                "suspicious_phrase_hits": [], "brand_candidates": [],
+                "impersonation_reasons": []
+            }
+
+    import app.service as service_module
+    monkeypatch.setattr(service_module, "URLHeuristics", MockScanner)
+    monkeypatch.setattr(service_module, "SSLValidator", MockScanner)
+    monkeypatch.setattr(service_module, "DomainAgeScanner", MockScanner)
+    monkeypatch.setattr(service_module, "ThreatIntelScanner", MockScanner)
+    monkeypatch.setattr(service_module, "ContentScanner", MockContentScanner)
+
+    # Mock extract_features
+    def mock_extract_features(target, details):
+        return {}
+    monkeypatch.setattr(service_module, "extract_features", mock_extract_features)
+
+    # Mock MLScanner.scan
+    def mock_ml_scan(self, features):
+        return {"status": "unknown", "risk_score": 0}
+    monkeypatch.setattr(service.structured_ml, "scan", mock_ml_scan)
 
     result = service.scan_combined_with_progress("https://example.com", progress_callback=events.append)
 

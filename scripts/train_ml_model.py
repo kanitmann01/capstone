@@ -14,7 +14,7 @@ from pathlib import Path  # Standard library: filesystem path abstraction
 from scanner.feed_ingest import ThreatFeedCache  # Project-local: threat-intel cache
 from scanner.ml_training import sanitize_training_config  # Project-local: config validator
 from scanner.ml_training import train_from_labeled_csv  # Project-local: end-to-end training pipeline
-from scanner.service import ScanService  # Project-local: combined scanner service
+from app.service import AppService  # Project-local: combined scanner service
 from scanner.settings import ScannerSettings  # Project-local: scanner configuration
 
 
@@ -54,7 +54,7 @@ def main() -> int:
     args = build_parser().parse_args()
     settings = ScannerSettings.from_env()
     feed_cache = ThreatFeedCache(settings)
-    scan_service = ScanService(settings, feed_cache)
+    scan_service = AppService(settings=settings, feed_cache=feed_cache)
     raw_config = {
         "test_size": args.test_size,
         "random_state": args.random_state,
