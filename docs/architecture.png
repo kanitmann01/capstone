@@ -1,0 +1,11 @@
+This is a placeholder for the architecture diagram PNG file. The actual diagram should be created using Excalidraw and saved as docs/architecture.png with the following structure:
+
+[URL Stream] → [FastText Feature Extraction] → [Ensemble: XGBoost + LightGBM + RF + LR] → [Adjudication Layer] → [Risk Score + UI]
+
+To create the proper PNG file:
+1. Go to https://excalidraw.com
+2. Create the diagram with 5 boxes connected by arrows as shown above
+3. Export as PNG
+4. Save to docs/architecture.png
+
+The SVG version is available in docs/architecture.svg

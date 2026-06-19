@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="800" height="400" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .box {
+      fill: #f8f9fa;
+      stroke: #6c757d;
+      stroke-width: 2;
+      rx: 8;
+      ry: 8;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      text-anchor: middle;
+    }
+    .arrow {
+      fill: none;
+      stroke: #6c757d;
+      stroke-width: 2;
+      marker-end: url(#arrowhead);
+    }
+    .title {
+      font-family: Arial, sans-serif;
+      font-size: 16px;
+      font-weight: bold;
+      fill: #212529;
+    }
+    .subtitle {
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      fill: #6c757d;
+    }
+    .highlight {
+      fill: #e7f3ff;
+      stroke: #0066cc;
+      stroke-width: 2;
+    }
+  </style>
+  
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#6c757d"/>
+    </marker>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="100%" height="100%" fill="white"/>
+  
+  <!-- Title -->
+  <text x="400" y="30" text-anchor="middle" class="title">Phishing Scanner Architecture</text>
+  
+  <!-- Box 1: URL Stream -->
+  <rect x="50" y="100" width="140" height="80" class="box highlight"/>
+  <text x="120" y="125" class="title">URL Stream</text>
+  <text x="120" y="145" class="subtitle">NetSTAR + PhishStats APIs</text>
+  <text x="120" y="160" class="subtitle">Real-time ingestion</text>
+  
+  <!-- Box 2: FastText Feature Extraction -->
+  <rect x="250" y="100" width="160" height="80" class="box"/>
+  <text x="330" y="125" class="title">FastText Feature</text>
+  <text x="330" y="140" class="title">Extraction</text>
+  <text x="330" y="155" class="subtitle">URL token embeddings</text>
+  <text x="330" y="170" class="subtitle">100-dim vectors</text>
+  
+  <!-- Box 3: Ensemble -->
+  <rect x="470" y="80" width="180" height="120" class="box highlight"/>
+  <text x="560" y="105" class="title">Ensemble Inference</text>
+  <text x="560" y="125" class="subtitle">XGBoost + LightGBM</text>
+  <text x="560" y="140" class="subtitle">+ Random Forest + LR</text>
+  <text x="560" y="160" class="subtitle">Multi-model consensus</text>
+  
+  <!-- Box 4: Adjudication -->
+  <rect x="700" y="100" width="140" height="80" class="box"/>
+  <text x="770" y="125" class="title">Adjudication</text>
+  <text x="770" y="145" class="subtitle">Layer</text>
+  <text x="770" y="160" class="subtitle">Consensus validation</text>
+  <text x="770" y="175" class="subtitle">Risk scoring</text>
+  
+  <!-- Box 5: Risk Score + UI -->
+  <rect x="850" y="100" width="140" height="80" class="box highlight"/>
+  <text x="920" y="125" class="title">Risk Score + UI</text>
+  <text x="920" y="145" class="subtitle">FastAPI endpoint</text>
+  <text x="920" y="160" class="subtitle">Web interface</text>
+  
+  <!-- Arrows -->
+  <path d="M 190 140 L 250 140" class="arrow"/>
+  <path d="M 410 140 L 470 140" class="arrow"/>
+  <path d="M 650 140 L 700 140" class="arrow"/>
+  <path d="M 840 140 L 850 140" class="arrow"/>
+  
+  <!-- Additional connections -->
+  <path d="M 120 180 L 120 200 L 330 200 L 330 180" class="arrow" stroke-dasharray="5,5"/>
+  <path d="M 330 180 L 330 200 L 560 200 L 560 180" class="arrow" stroke-dasharray="5,5"/>
+  <path d="M 560 180 L 560 200 L 770 200 L 770 180" class="arrow" stroke-dasharray="5,5"/>
+  <path d="M 770 180 L 770 200 L 920 200 L 920 180" class="arrow" stroke-dasharray="5,5"/>
+  
+  <!-- Pipeline label -->
+  <text x="400" y="230" text-anchor="middle" class="subtitle">Pipeline Flow</text>
+  
+  <!-- Legend -->
+  <rect x="50" y="320" width="20" height="20" fill="#e7f3ff" stroke="#0066cc" stroke-width="2"/>
+  <text x="80" y="335" class="subtitle">Key Components</text>
+  
+  <rect x="250" y="320" width="20" height="20" fill="#f8f9fa" stroke="#6c757d" stroke-width="2"/>
+  <text x="280" y="335" class="subtitle">Supporting Components</text>
+</svg>
