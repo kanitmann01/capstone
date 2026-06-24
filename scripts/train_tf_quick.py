@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scanner.feed_ingest import ThreatFeedCache
 from scanner.ml_training import sanitize_training_config, train_from_labeled_csv
-from scanner.service import ScanService
+from app.service import AppService
 from scanner.settings import ScannerSettings
 
 
@@ -54,7 +54,7 @@ def main() -> int:
 
     settings = ScannerSettings.from_env()
     feed_cache = ThreatFeedCache(settings)
-    scan_service = ScanService(settings, feed_cache)
+    scan_service = AppService(settings=settings, feed_cache=feed_cache)
 
     config = sanitize_training_config(
         {

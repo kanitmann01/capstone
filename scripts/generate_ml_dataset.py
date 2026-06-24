@@ -12,7 +12,7 @@ import argparse  # Standard library: command-line argument parsing
 
 from scanner.feed_ingest import ThreatFeedCache  # Project-local: threat-intel cache
 from scanner.ml_training import generate_feature_dataset  # Project-local: feature extraction pipeline
-from scanner.service import ScanService  # Project-local: combined scanner service
+from app.service import AppService  # Project-local: combined scanner service
 from scanner.settings import ScannerSettings  # Project-local: scanner configuration
 
 
@@ -36,7 +36,7 @@ def main() -> int:
     args = build_parser().parse_args()
     settings = ScannerSettings.from_env()
     feed_cache = ThreatFeedCache(settings)
-    scan_service = ScanService(settings, feed_cache)
+    scan_service = AppService(settings=settings, feed_cache=feed_cache)
     summary = generate_feature_dataset(
         input_csv=args.input_csv,
         output_csv=args.output_csv,

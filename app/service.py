@@ -13,7 +13,7 @@ from datetime import datetime, timezone  # Standard library: UTC-aware timestamp
 import csv  # Standard library: CSV reading for labeled training/evaluation data
 import json  # Standard library: JSON serialization for metadata and reports
 from pathlib import Path  # Standard library: filesystem path abstraction
-from typing import Any  # Standard library: generic type hints
+from typing import Any, Callable  # Standard library: generic type hints
 
 from pipeline.evaluation.compare_models import (
     confusion_counts,
@@ -49,6 +49,7 @@ from pipeline.modeling.inference import (
     FastTextDetector,
 )  # Project-local: FastText inference wrapper
 from pipeline.shared.config import (
+    AppConfig,
     CapstoneConfig,
 )  # Project-local: global capstone configuration
 from scanner.dataset_store import (
@@ -63,6 +64,7 @@ from scanner.brand_recognition import (
     BrandRecognitionDetector,
 )  # Project-local: domain/brand spoofing detector
 from scanner.heuristics import URLHeuristics  # Project-local: URL heuristic scanner
+from scanner.content import ContentScanner  # Project-local: HTML fetch and content analysis
 from scanner.ml_features import (
     extract_features,
 )  # Project-local: structured feature engineering
@@ -83,12 +85,31 @@ PIPELINE_VERSION = "unified_pipeline_v1"
 class AppService:
     """Central service coordinating scan, dataset, corpus, and training operations."""
 
-    def __init__(self, config: CapstoneConfig | None = None):
-        """Initialise all subsystems from configuration."""
-        self.config = config or CapstoneConfig.from_env()
-        self.scanner_settings = ScannerSettings.from_env()
+    def __init__(
+        self,
+        config: AppConfig | CapstoneConfig | None = None,
+        settings: ScannerSettings | None = None,
+        feed_cache: ThreatFeedCache | None = None,
+    ):
+        """Initialise all subsystems from configuration.
+        
+        Accepts AppConfig (unified), CapstoneConfig (legacy), or None (from env).
+        """
+        from pipeline.shared.config import app_config_to_legacy
+        
+        # Handle unified AppConfig
+        if isinstance(config, AppConfig):
+            self.app_config = config
+            self.config, self.scanner_settings = app_config_to_legacy(config)
+        else:
+            # Legacy path
+            self.config = config or CapstoneConfig.from_env()
+            self.scanner_settings = settings or ScannerSettings.from_env()
+            # Build unified AppConfig for internal use
+            self.app_config = None
+        
         self.dataset_store = BrandLoginDatasetStore(self.config.dataset_db_path)
-        self.feed_cache = ThreatFeedCache(self.scanner_settings)
+        self.feed_cache = feed_cache or ThreatFeedCache(self.scanner_settings)
         self.detector = FastTextDetector(
             self.config.fasttext_model_path, threshold=self.config.fasttext_threshold
         )
@@ -210,6 +231,124 @@ class AppService:
     def scan_combined(self, raw_url: str, *, persist: bool = True) -> dict[str, Any]:
         """Public wrapper around scan_url using the "api_scan" source label."""
         return self.scan_url(raw_url, persist=persist, source="api_scan")
+
+    def scan_combined_with_progress(
+        self,
+        raw_url: str,
+        progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    ) -> dict[str, Any]:
+        """Run a full combined scan with progress callbacks (ScanService-compatible)."""
+        target = normalize_input_url(raw_url)
+        details: dict[str, dict[str, Any]] = {}
+        check_runners = {
+            "heuristics": lambda: URLHeuristics(target).run_checks(),
+            "content": lambda: ContentScanner(target, self.scanner_settings).run_checks(),
+            "ssl": lambda: SSLValidator(target, self.scanner_settings).run_checks(),
+            "domain_age": lambda: DomainAgeScanner(target).run_checks(),
+            "threat_intel": lambda: ThreatIntelScanner(target, self.feed_cache).run_checks(),
+        }
+        for name in ["heuristics", "content", "ssl", "domain_age", "threat_intel"]:
+            if progress_callback:
+                progress_callback({"type": "check_started", "check": name})
+            result = check_runners[name]()
+            details[name] = result
+            if progress_callback:
+                progress_callback({
+                    "type": "check_completed",
+                    "check": name,
+                    "status": result.get("status", "ok"),
+                    "risk_score": result.get("risk_score", 0),
+                })
+        if progress_callback:
+            progress_callback({"type": "check_started", "check": "ml"})
+        features = extract_features(target, details)
+        ml_result = self.structured_ml.scan(features)
+        details["ml"] = ml_result
+        if progress_callback:
+            progress_callback({
+                "type": "check_completed",
+                "check": "ml",
+                "status": ml_result.get("status", "unknown"),
+                "risk_score": ml_result.get("risk_score", 0),
+            })
+        weights = {
+            "heuristics": self.scanner_settings.weights_heuristics,
+            "content": self.scanner_settings.weights_content,
+            "ssl": self.scanner_settings.weights_ssl,
+            "domain_age": self.scanner_settings.weights_domain_age,
+            "threat_intel": self.scanner_settings.weights_threat_intel,
+            "ml": self.scanner_settings.weights_ml,
+        }
+        numerator = 0.0
+        denominator = 0.0
+        contributing: list[str] = []
+        unknown_checks: list[str] = []
+        for check_name, result in details.items():
+            status = result.get("status", "ok")
+            if status != "ok":
+                unknown_checks.append(check_name)
+                continue
+            component = float(result.get("risk_score") or 0)
+            weight = float(weights.get(check_name, 0.0))
+            if weight <= 0:
+                continue
+            numerator += component * weight
+            denominator += weight
+            contributing.append(check_name)
+        score = numerator / denominator if denominator else 0.0
+        content = details.get("content") or {}
+        brand_impersonation = {
+            "detected_brand": content.get("detected_brand") or "",
+            "free_host_provider": content.get("host_provider") or "",
+            "brand_mismatch": bool(content.get("brand_mismatch")),
+            "brand_path_match": bool(content.get("brand_path_match")),
+            "login_form_present": bool(content.get("login_form_present")),
+            "password_field_count": int(content.get("password_field_count") or 0),
+            "form_action_mismatch": bool(content.get("form_action_mismatch")),
+            "suspicious_phrase_hits": list(content.get("suspicious_phrase_hits") or []),
+            "brand_candidates": list(content.get("brand_candidates") or [])[:3],
+            "reasons": list(content.get("impersonation_reasons") or [])[:8],
+            "target_host": target.host,
+        }
+        return {
+            "url": target.normalized_url,
+            "risk_score": round(score, 2),
+            "contributing_checks": contributing,
+            "unknown_checks": unknown_checks,
+            "feed_freshness": self.feed_cache.metadata(),
+            "brand_impersonation": brand_impersonation,
+            "details": details,
+        }
+
+    def _weighted_score(self, details: dict[str, dict[str, Any]]) -> tuple[float, list[str], list[str]]:
+        """Aggregate individual check scores into a weighted composite score (ScanService-compatible)."""
+        weights = {
+            "heuristics": self.scanner_settings.weights_heuristics,
+            "content": self.scanner_settings.weights_content,
+            "ssl": self.scanner_settings.weights_ssl,
+            "domain_age": self.scanner_settings.weights_domain_age,
+            "threat_intel": self.scanner_settings.weights_threat_intel,
+            "ml": self.scanner_settings.weights_ml,
+        }
+        numerator = 0.0
+        denominator = 0.0
+        contributing: list[str] = []
+        unknown: list[str] = []
+        for name, result in details.items():
+            status = result.get("status", "ok")
+            if status != "ok":
+                unknown.append(name)
+                continue
+            component = float(result.get("risk_score") or 0)
+            weight = float(weights.get(name, 0.0))
+            if weight <= 0:
+                continue
+            numerator += component * weight
+            denominator += weight
+            contributing.append(name)
+        if denominator == 0:
+            return 0.0, contributing, unknown
+        return numerator / denominator, contributing, unknown
 
     def _contributing_checks(
         self,

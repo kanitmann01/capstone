@@ -15,3 +15,17 @@ Functional and focused with moderate motion. Prioritize crisp feedback and purpo
 3. Keep interactions fast and unobtrusive for repeat use.
 4. Preserve readability and confidence over visual flair.
 5. Favor GPU-friendly animation (`transform`, `opacity`) to protect responsiveness.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues at kanitmann01/capstone. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout with CONTEXT.md and docs/adr/ at repo root. See `docs/agents/domain.md`.
